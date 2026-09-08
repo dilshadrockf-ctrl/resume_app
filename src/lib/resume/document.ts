@@ -137,7 +137,7 @@ export const projectItemSchema = z.object({
   description: z.string().optional(),
   bullets: z.array(z.string()).default([]),
   technologies: z.array(z.string()).default([]),
-  skillsUsed: z.array(z.array(z.string())).optional().or(z.array(z.string())).optional(),
+  skillsUsed: z.array(z.string()).default([]),
   ...refBase,
 });
 export type ProjectItem = z.infer<typeof projectItemSchema>;

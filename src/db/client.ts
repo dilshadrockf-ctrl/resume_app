@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { env } from "@/lib/env";
 
 /**
@@ -10,7 +11,10 @@ import { env } from "@/lib/env";
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function buildClient(): PrismaClient {
+  // engineType="client" (query compiler): the driver adapter IS the runtime.
+  // Plain local PostgreSQL via node-postgres — no cloud drivers required.
   const client = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: env.DATABASE_URL }),
     log:
       env.NODE_ENV === "development"
         ? [{ emit: "event", level: "warn" } as const, { emit: "event", level: "error" } as const]

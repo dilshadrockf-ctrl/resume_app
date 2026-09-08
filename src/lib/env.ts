@@ -1,19 +1,13 @@
 import { z } from "zod";
 
 const optionalUrl = z
-  .union([z.string().url(), z.literal(""), z.undefined()])
-  .transform((v) => (v === "" ? undefined : v));
+  .union([z.string().url(), z.literal("")])
+  .optional()
+  .transform((v) => (v ? v : undefined));
 const optionalString = z
-  .union([z.string(), z.undefined()])
-  .transform((v) => (v === "" ? undefined : v));
-
-/**
- * Central configuration (§190). Parsed once per process at import time.
- * - Missing required config throws in production with an actionable message.
- * - Optional integrations (redis, s3, smtp, AI) fall back to local modes so
- *   the app always runs on a plain machine with just PostgreSQL.
- * - Nothing is ever `any`; export typed getters below.
- */
+  .string()
+  .optional()
+  .transform((v) => (v ? v : undefined));
 
 const booleanish = (fallback: "true" | "false") =>
   z
@@ -25,8 +19,8 @@ const intish = (fallback: number) =>
   z
     .string()
     .regex(/^-?\d+$/)
-    .transform((v) => Number.parseInt(v, 10))
-    .prefault(String(fallback));
+    .default(String(fallback))
+    .transform((v) => Number.parseInt(v, 10));
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

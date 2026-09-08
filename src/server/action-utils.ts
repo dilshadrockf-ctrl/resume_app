@@ -1,4 +1,3 @@
-import "server-only";
 import { ZodError, type ZodType } from "zod";
 import { log } from "@/lib/logger";
 import { ForbiddenError, UnauthorizedError } from "@/server/context";
