@@ -67,7 +67,8 @@ export function scaffoldLetter(input: {
   const count = input.length === "SHORT" ? 2 : input.length === "STANDARD" ? 3 : 5;
   const wins = topWins(input.doc, count);
   const headline = input.doc.contact.headline ? `${input.doc.contact.headline}. ` : "";
-  const name = input.doc.contact.fullName || "[YOUR NAME]";
+  const fn = input.doc.contact.fullName?.trim() ?? "";
+  const name = !fn || fn === "Your Name" ? "[YOUR NAME]" : fn;
 
   const middle = wins.length
     ? `In recent roles I have:\n${wins.map((w) => `• ${w}`).join("\n")}\n\n${headline}The details — stack, timeline, and context — are in the attached resume.`

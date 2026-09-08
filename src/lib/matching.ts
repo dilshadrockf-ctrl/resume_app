@@ -250,16 +250,64 @@ export interface JdSignals {
 export function extractJdSignals(jd: string, title = ""): JdSignals {
   const lower = jd.toLowerCase();
   const lines = jd.split(/\r?\n/);
-  const requiredLines = lines
-    .filter((l) =>
-      /\b(must|required|minimum|at least|expertise in|deep (knowledge|experience)|years? of)\b/i.test(
-        l,
-      ),
-    )
-    .map((l) => l.toLowerCase());
-  const preferredLines = lines
-    .filter((l) => /\b(nice to have|bonus|preferred|plus\b|familiarity)\b/i.test(l))
-    .map((l) => l.toLowerCase());
+  // section-aware scan: lines under a "requirements"-style heading are
+  // required; under "bonus/nice-to-have" they are preferred. Per-line
+  // phrasing is a second signal that unions in.
+  let inReqSection = false;
+  let inPrefSection = false;
+  const reqSectionLines: string[] = [];
+  const prefSectionLines: string[] = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (
+      /^(what you['’]?(ll| will) bring|what we['’]?re looking for|requirements?|qualifications|must[- ]have|basic qualifications|you( should)? (have|bring))\b(?:[^a-z]|$)/i.test(
+        line,
+      ) &&
+      line.length <= 60
+    ) {
+      inReqSection = true;
+      inPrefSection = false;
+      continue;
+    }
+    if (
+      /^(nice to have|bonus|preferred|plus|desirable|what will set you apart)\b(?:[^a-z]|$)/i.test(
+        line,
+      ) &&
+      line.length <= 60
+    ) {
+      inPrefSection = true;
+      inReqSection = false;
+      continue;
+    }
+    if (
+      line.length > 0 &&
+      /^[A-Z][A-Za-z /&-]{2,55}[:]?\s*$/.test(line) &&
+      !line.startsWith("-") &&
+      !line.startsWith("•")
+    ) {
+      inReqSection = false;
+      inPrefSection = false;
+      continue; // other heading: reset sections
+    }
+    if (line && inReqSection) reqSectionLines.push(line.toLowerCase());
+    if (line && inPrefSection) prefSectionLines.push(line.toLowerCase());
+  }
+  const requiredLines = [
+    ...reqSectionLines,
+    ...lines
+      .filter((l) =>
+        /\b(must|required|minimum|at least|expertise in|deep (knowledge|experience)|years? of)\b/i.test(
+          l,
+        ),
+      )
+      .map((l) => l.toLowerCase()),
+  ];
+  const preferredLines = [
+    ...prefSectionLines,
+    ...lines
+      .filter((l) => /\b(nice to have|bonus|preferred|plus\b|familiarity)\b/i.test(l))
+      .map((l) => l.toLowerCase()),
+  ];
 
   const keywords: JdSignals["keywords"] = [];
   for (const term of VOCAB) {

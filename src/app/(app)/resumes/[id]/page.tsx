@@ -43,9 +43,15 @@ export default async function ResumeEditorPage({ params }: { params: Promise<{ i
 
   const library = profile
     ? {
-        experience: profile.experiences, education: profile.educations, project: profile.projects,
-        skill: profile.skills, certification: profile.certifications, award: profile.awards,
-        publication: profile.publications, language: profile.languages, volunteer: profile.volunteers,
+        experience: profile.experiences,
+        education: profile.educations,
+        project: profile.projects,
+        skill: profile.skills,
+        certification: profile.certifications,
+        award: profile.awards,
+        publication: profile.publications,
+        language: profile.languages,
+        volunteer: profile.volunteers,
         custom: profile.customSections,
       }
     : {};
@@ -58,7 +64,7 @@ export default async function ResumeEditorPage({ params }: { params: Promise<{ i
       initialDoc={loaded.doc}
       library={library}
       contact={profileToContact(contact)}
-      aiConfigured={envMod.env.AI_PROVIDER !== "none"}
+      aiConfigured={envMod.appConfig.aiConfigured}
     />
   );
 }
