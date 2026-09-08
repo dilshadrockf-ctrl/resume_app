@@ -597,7 +597,7 @@ function sectionItemToEntryData(item: SectionItem): { model: EntryModelName; dat
       Object.assign(d, strip({
         name: item.name, role: item.role || null, url: item.url || null, startDate: item.startDate || null, endDate: item.endDate || null,
         description: item.description || null, bullets: item.bullets, technologies: item.technologies,
-        skillsUsed: Array.isArray(item.skillsUsed?.[0]) ? (item.skillsUsed as string[][]).flat() : ((item.skillsUsed as string[] | undefined) ?? []),
+        skillsUsed: item.skillsUsed ?? [],
       }));
       break;
     case "skill":
