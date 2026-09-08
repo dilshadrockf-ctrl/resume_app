@@ -142,8 +142,6 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
         if (e.tags) children.push(para(render, [{ text: e.tags, color: "#6B7280", italic: true }], { spacing: { after: 40 } }));
         break;
       }
-      case "header":
-      case "section-title":
       case "spacer":
         break;
     }

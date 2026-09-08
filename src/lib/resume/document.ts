@@ -314,10 +314,10 @@ export function sectionItems<T extends SectionItem["kind"]>(
   doc: ResumeDocument,
   kind: T,
 ): Array<Extract<SectionItem, { kind: T }>> {
-  const section = doc.sections.find((s) => s.kind === kind);
+  const section = doc.sections.find((s: ResumeSectionDoc) => s.kind === (kind as SectionKind as string));
   if (!section) return [];
   return section.items
     .filter((i) => i.visible)
     .sort((a, b) => a.order - b.order)
-    .map((i) => i as Extract<SectionItem, { kind: T }>);
+    .map((i) => i as unknown as Extract<SectionItem, { kind: T }>);
 }

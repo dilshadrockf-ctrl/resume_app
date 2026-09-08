@@ -21,8 +21,6 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: buildAllowedOrigins(),
   poweredByHeader: false,
   reactStrictMode: true,
-  eslint: { ignoreDuringBuilds: false },
-  typescript: { ignoreBuildErrors: false },
   images: { unoptimized: true },
   async headers() {
     return [

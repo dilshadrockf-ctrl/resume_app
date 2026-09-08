@@ -1,0 +1,160 @@
+@import "tailwindcss";
+
+@fontsource/inter/400.css;
+@fontsource/inter/500.css;
+@fontsource/inter/600.css;
+@fontsource/inter/700.css;
+@fontsource/inter/400-italic.css;
+@fontsource/lora/400.css;
+@fontsource/lora/600.css;
+@fontsource/jetbrains-mono/400.css;
+@fontsource/jetbrains-mono/600.css;
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: oklch(0.985 0.002 247.8);
+  --foreground: oklch(0.21 0.03 264.7);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 264.7);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.03 264.7);
+  --primary: oklch(0.5 0.2 259);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.955 0.005 247.8);
+  --secondary-foreground: oklch(0.28 0.03 260);
+  --muted: oklch(0.955 0.005 247.8);
+  --muted-foreground: oklch(0.5 0.02 255);
+  --accent: oklch(0.945 0.02 255);
+  --accent-foreground: oklch(0.28 0.04 260);
+  --destructive: oklch(0.58 0.22 27);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.6 0.13 155);
+  --warning: oklch(0.7 0.15 80);
+  --border: oklch(0.9 0.008 247.8);
+  --input: oklch(0.9 0.008 247.8);
+  --ring: oklch(0.5 0.2 259);
+  --radius: 0.625rem;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 4px 16px -8px rgb(15 23 42 / 0.08);
+}
+
+.dark {
+  --background: oklch(0.17 0.014 260);
+  --foreground: oklch(0.96 0.005 250);
+  --card: oklch(0.21 0.017 260);
+  --card-foreground: oklch(0.96 0.005 250);
+  --popover: oklch(0.21 0.017 260);
+  --popover-foreground: oklch(0.96 0.005 250);
+  --primary: oklch(0.68 0.16 253);
+  --primary-foreground: oklch(0.16 0.02 260);
+  --secondary: oklch(0.27 0.02 260);
+  --secondary-foreground: oklch(0.96 0.005 250);
+  --muted: oklch(0.27 0.02 260);
+  --muted-foreground: oklch(0.7 0.02 257);
+  --accent: oklch(0.32 0.03 260);
+  --accent-foreground: oklch(0.96 0.005 250);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.98 0 0);
+  --border: oklch(0.32 0.02 260);
+  --input: oklch(0.34 0.02 260);
+  --ring: oklch(0.62 0.15 253);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px -12px rgb(0 0 0 / 0.45);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Skip link for keyboard users */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  padding: 8px 14px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 8px;
+}
+
+/* Resume paper preview sizing: 1pt = 1.3333px at 96dpi */
+.resume-paper {
+  --px-per-pt: 1.3333;
+}
+
+/* thin elegant scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+}
+
+/* print: hide app chrome, show paper only (§113) */
+@media print {
+  body * { visibility: hidden !important; }
+  #resume-print-area, #resume-print-area * { visibility: visible !important; }
+  #resume-print-area {
+    position: absolute !important;
+    inset: 0 auto auto 0;
+    width: 100%;
+    box-shadow: none !important;
+  }
+  .resume-page-box { box-shadow: none !important; margin: 0 !important; border: none !important; }
+  @page { margin: 0; }
+}

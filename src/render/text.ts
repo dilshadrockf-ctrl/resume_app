@@ -43,8 +43,6 @@ export function renderAtsText(render: RenderDoc): string {
             if (e.tags) out.push(`  Tech: ${e.tags}`);
             break;
           }
-          case "header":
-          case "section-title":
           case "spacer":
             break;
         }

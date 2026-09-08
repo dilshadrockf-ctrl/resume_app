@@ -37,6 +37,23 @@ const { text } = await extractText(await bytes2.bytes.buffer.slice(bytes2.bytes.
 const joined = text.join("\n");
 if (!joined.includes("Jordan")) throw new Error("PDF text extraction failed");
 if (!joined.includes("Northwind")) throw new Error("PDF missing employer");
+{
+  const { PDFDocument, PDFName, PDFArray } = await import("pdf-lib");
+  const loaded = await PDFDocument.load(bytes2.bytes);
+  const page = loaded.getPage(0);
+  const annots = page.node.lookup(PDFName.of("Annots"));
+  if (!(annots instanceof PDFArray) || annots.size() < 3) throw new Error("missing link annotations on page 1");
+  let sawMailto = false, sawHttp = false;
+  for (let i = 0; i < annots.size(); i++) {
+    const a = loaded.context.lookup(annots.get(i)) as any;
+    const act = loaded.context.lookup(a.dict.get(PDFName.of("A")));
+    const uri = act?.dict?.get?.(PDFName.of("URI"))?.toString?.() ?? "";
+    if (/mailto/i.test(uri)) sawMailto = true;
+    if (/https?:/.test(uri)) sawHttp = true;
+  }
+  if (!sawMailto || !sawHttp) throw new Error(`bad link URIs (mailto=${sawMailto} http=${sawHttp})`);
+  console.log("PDF LINK ANNOTATIONS OK (" + annots.size() + " on page 1)");
+}
 console.log("PDF TEXT EXTRACTION OK, chars:", joined.length);
 const docxBytes = await buildDocx(render);
 import { unzipSync } from "fflate";

@@ -306,6 +306,11 @@ function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof
         keywords: [...(item.items ?? [])],
       };
     }
+    default:
+      return {
+        entry: { left: [], paragraphs: (item as unknown as { description?: string }).description ? [[{ text: String((item as unknown as { description?: string }).description) }]] : [], bullets: [] },
+        keywords: [],
+      };
   }
 }
 
@@ -342,7 +347,6 @@ export function buildRenderDoc(doc: ResumeDocument, overrides?: Partial<Template
     : null;
 
   const header: RenderDoc["header"] = {
-    type: "header" as const,
     name: doc.contact.fullName,
     headlineRuns: headline,
     contactRuns: contactList,

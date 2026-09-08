@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFArray, PDFDict, PDFDocument, PDFName, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { typesetDoc, type PlacedDoc, type PlacedItem, type PlacedLine } from "@/templates/typeset";
 import type { RenderDoc } from "@/templates/blocks";
@@ -18,6 +18,33 @@ export interface PdfRenderResult {
 }
 
 type FontMap = Record<string, PDFFont>;
+
+/**
+ * pdf-lib has no public link API; register a real /Link annotation in the
+ * document context so exported PDFs carry clickable URLs/mailto links.
+ * Any failure must never break the export.
+ */
+function addLinkAnnotation(pdf: PDFDocument, p: PDFPage, url: string, x: number, y: number, w: number, h: number) {
+  try {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || w <= 0 || h <= 0) return;
+    const ctx = pdf.context;
+    const annot = PDFDict.withContext(ctx);
+    annot.set(PDFName.Type, PDFName.of("Annot"));
+    annot.set(PDFName.of("Subtype"), PDFName.of("Link"));
+    annot.set(PDFName.of("Rect"), ctx.obj([x, y, x + w, y + h]));
+    annot.set(PDFName.of("Border"), ctx.obj([0, 0, 0]));
+    const action = PDFDict.withContext(ctx);
+    action.set(PDFName.of("S"), PDFName.of("URI"));
+    action.set(PDFName.of("URI"), ctx.obj(url));
+    annot.set(PDFName.of("A"), ctx.register(action));
+    const ref = ctx.register(annot);
+    const existing = p.node.lookup(PDFName.of("Annots"));
+    if (existing instanceof PDFArray) existing.push(ref);
+    else p.node.set(PDFName.of("Annots"), ctx.obj([ref]));
+  } catch {
+    /* links are an enhancement, never a point of failure */
+  }
+}
 
 function hexToRgb(hex: string) {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex.trim());
@@ -42,7 +69,7 @@ async function loadFonts(pdf: PDFDocument, render: RenderDoc): Promise<FontMap> 
   const buffers = loadPdfFonts(collectFontKeys([...families]));
   for (const [key, buf] of buffers) {
     try {
-      fonts[key] = await pdf.embedFont(buf, { custom: true });
+      fonts[key] = await pdf.embedFont(buf);
     } catch {
       fonts[key] = key.includes("/7") || key.includes("/6") ? helvB : helv;
     }
@@ -67,14 +94,14 @@ export async function renderResumePdf(render: RenderDoc): Promise<PdfRenderResul
   const placed = typesetDoc(render, measurer);
   for (const page of placed.pages) {
     const p = pdf.addPage([placed.width, placed.height]);
-    for (const item of page.items) drawItem(p, item, fonts);
+    for (const item of page.items) drawItem(p, item, fonts, pdf);
   }
 
   const bytes = await pdf.save();
   return { bytes, pages: placed.pages.length };
 }
 
-function drawItem(p: PDFPage, item: PlacedItem, fonts: FontMap) {
+function drawItem(p: PDFPage, item: PlacedItem, fonts: FontMap, doc: PDFDocument) {
   if (item.kind === "rect") {
     p.drawRectangle({
       x: Math.max(-4, item.x),
@@ -86,10 +113,11 @@ function drawItem(p: PDFPage, item: PlacedItem, fonts: FontMap) {
     });
     return;
   }
-  drawText(p, item.x, item.y, item.width, item.lines, item.align, fonts, item.lineHeight);
+  drawText(doc, p, item.x, item.y, item.width, item.lines, item.align, fonts, item.lineHeight);
 }
 
 function drawText(
+  doc: PDFDocument,
   p: PDFPage,
   x0: number,
   y0: number,
@@ -121,11 +149,7 @@ function drawText(
         });
       }
       if (run.link && /^https?:|^mailto:/i.test(run.link)) {
-        try {
-          p.drawLink({ url: run.link, rect: { x, y: y - 2, width: w, height: run.size + 4 } });
-        } catch {
-          /* annotation best-effort */
-        }
+        addLinkAnnotation(doc, p, run.link, x, y - 2, w, run.size + 4);
       }
       x += w;
     }

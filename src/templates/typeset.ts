@@ -209,7 +209,7 @@ function planBullets(
   render: RenderDoc,
   o: TypesetContext,
   measurer: Measurer,
-  items: string[][],
+  items: Run[][],
   width: number,
 ): BlockPlan {
   const indent = 11;
@@ -265,9 +265,6 @@ function planEntry(render: RenderDoc, o: TypesetContext, measurer: Measurer, ent
         width: dateWidth || width,
       },
     ];
-    if (rightBelow && entry.location === undefined) {
-      // date under title
-    }
     if (rightBelow) {
       items.push({ kind: "text", x: 0, y: titleBottom, width, lineHeight: o.lineHeight * 0.95, align: "left", lines: dLines });
       y = titleBottom + o.lineHeight * 0.95;

@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+const optionalUrl = z
+  .union([z.string().url(), z.literal(""), z.undefined()])
+  .transform((v) => (v === "" ? undefined : v));
+const optionalString = z
+  .union([z.string(), z.undefined()])
+  .transform((v) => (v === "" ? undefined : v));
+
 /**
  * Central configuration (§190). Parsed once per process at import time.
  * - Missing required config throws in production with an actionable message.
@@ -8,14 +15,18 @@ import { z } from "zod";
  * - Nothing is ever `any`; export typed getters below.
  */
 
-const booleanish = z
-  .enum(["true", "false", "1", "0"])
-  .transform((v) => v === "true" || v === "1");
+const booleanish = (fallback: "true" | "false") =>
+  z
+    .enum(["true", "false", "1", "0"])
+    .default(fallback)
+    .transform((v) => v === "true" || v === "1");
 
-const intish = z
-  .string()
-  .regex(/^-?\d+$/)
-  .transform((v) => Number.parseInt(v, 10));
+const intish = (fallback: number) =>
+  z
+    .string()
+    .regex(/^-?\d+$/)
+    .transform((v) => Number.parseInt(v, 10))
+    .prefault(String(fallback));
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -28,56 +39,56 @@ const envSchema = z.object({
 
   AUTH_SECRET: z.string().optional(),
   AUTH_URL: z.string().url().optional(),
-  AUTH_TRUST_HOST: booleanish.default("true"),
+  AUTH_TRUST_HOST: booleanish("true"),
 
-  REDIS_URL: z.string().optional(),
+  REDIS_URL: optionalString,
   QUEUE_PREFIX: z.string().default("resumeforge"),
-  QUEUE_INPROCESS: booleanish.default("true"),
+  QUEUE_INPROCESS: booleanish("true"),
 
   STORAGE_DRIVER: z.enum(["auto", "minio", "filesystem"]).default("auto"),
-  S3_ENDPOINT: z.string().url().optional(),
+  S3_ENDPOINT: optionalUrl,
   S3_REGION: z.string().default("us-east-1"),
-  S3_ACCESS_KEY: z.string().optional(),
-  S3_SECRET_KEY: z.string().optional(),
+  S3_ACCESS_KEY: optionalString,
+  S3_SECRET_KEY: optionalString,
   S3_BUCKET: z.string().default("resumes"),
   FILESYSTEM_STORAGE_DIR: z.string().default("./storage"),
 
   MAIL_DRIVER: z.enum(["auto", "smtp", "log"]).default("auto"),
   MAIL_HOST: z.string().default("localhost"),
-  MAIL_PORT: intish.default("1025"),
-  MAIL_USER: z.string().optional(),
-  MAIL_PASSWORD: z.string().optional(),
-  MAIL_SECURE: booleanish.default("false"),
+  MAIL_PORT: intish(1025),
+  MAIL_USER: optionalString,
+  MAIL_PASSWORD: optionalString,
+  MAIL_SECURE: booleanish("false"),
   MAIL_FROM: z.string().default("ResumeForge <noreply@localhost>"),
 
   AI_PROVIDER: z
     .enum(["none", "ollama", "openai", "anthropic", "google", "openai-compatible"])
     .default("none"),
-  AI_BASE_URL: z.string().url().optional().or(z.literal("")),
-  AI_API_KEY: z.string().optional().or(z.literal("")),
-  AI_DEFAULT_MODEL: z.string().optional().or(z.literal("")),
-  AI_FAST_MODEL: z.string().optional().or(z.literal("")),
-  AI_REASONING_MODEL: z.string().optional().or(z.literal("")),
+  AI_BASE_URL: optionalUrl,
+  AI_API_KEY: optionalString,
+  AI_DEFAULT_MODEL: optionalString,
+  AI_FAST_MODEL: optionalString,
+  AI_REASONING_MODEL: optionalString,
   AI_FALLBACK_PROVIDER: z
     .enum(["none", "ollama", "openai", "anthropic", "google", "openai-compatible"])
     .default("none"),
-  AI_FALLBACK_BASE_URL: z.string().url().optional().or(z.literal("")),
-  AI_FALLBACK_API_KEY: z.string().optional().or(z.literal("")),
-  AI_FALLBACK_MODEL: z.string().optional().or(z.literal("")),
-  AI_MAX_INPUT_CHARS: intish.default(24000),
-  AI_TIMEOUT_MS: intish.default(120000),
-  AI_DAILY_TOKEN_BUDGET: intish.default(0),
+  AI_FALLBACK_BASE_URL: optionalUrl,
+  AI_FALLBACK_API_KEY: optionalString,
+  AI_FALLBACK_MODEL: optionalString,
+  AI_MAX_INPUT_CHARS: intish(24000),
+  AI_TIMEOUT_MS: intish(120000),
+  AI_DAILY_TOKEN_BUDGET: intish(0),
 
-  BILLING_ENABLED: booleanish.default("false"),
-  FREE_PLAN_UNLIMITED: booleanish.default("true"),
+  BILLING_ENABLED: booleanish("false"),
+  FREE_PLAN_UNLIMITED: booleanish("true"),
   FEATURE_FLAGS_ON: z.string().default(""),
 
-  RATE_LIMIT_LOGIN: intish.default(5),
-  RATE_LIMIT_REGISTER: intish.default(3),
-  RATE_LIMIT_AI: intish.default(30),
-  RATE_LIMIT_IMPORT: intish.default(10),
-  RATE_LIMIT_EXPORT: intish.default(30),
-  RATE_LIMIT_PUBLIC_RESUME: intish.default(120),
+  RATE_LIMIT_LOGIN: intish(5),
+  RATE_LIMIT_REGISTER: intish(3),
+  RATE_LIMIT_AI: intish(30),
+  RATE_LIMIT_IMPORT: intish(10),
+  RATE_LIMIT_EXPORT: intish(30),
+  RATE_LIMIT_PUBLIC_RESUME: intish(120),
 
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   LOG_FORMAT: z.enum(["pretty", "json"]).default("pretty"),
