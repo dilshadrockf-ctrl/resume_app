@@ -66,11 +66,6 @@ const partialDate = z
   .nullable()
   .or(z.literal(""));
 
-export function cleanDate(v: string | null | undefined): string | undefined {
-  const s = (v ?? "").trim();
-  return s === "" ? undefined : s;
-}
-
 // ─────────────────────────────── items ──────────────────────────────────────
 
 const refBase = {
@@ -290,9 +285,9 @@ export const resumeDocumentSchema = z.object({
     paperSize: paperSizeEnum.default("A4"),
     templateId: z.string().default("ats-classic"),
     templateVersion: z.number().int().default(1),
-    config: templateConfigSchema.default({}),
+    config: templateConfigSchema.prefault({}),
   }),
-  contact: contactSchema.default({}),
+  contact: contactSchema.prefault({}),
   summary: z.string().default(""),
   sections: z.array(resumeSectionSchema).default([]),
 });

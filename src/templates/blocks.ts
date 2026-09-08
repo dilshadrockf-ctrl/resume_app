@@ -33,7 +33,7 @@ export type Block =
   | { type: "paragraph"; runs: Run[]; align?: "left" | "center"; spaceBefore?: number; spaceAfter?: number }
   | { type: "entry"; block: EntryBlock }
   | { type: "skill-group"; label: string; items: string[] }
-  | { type: "bullet-list"; items: string[][] } // items of runs
+  | { type: "bullet-list"; items: Run[][] }
   | { type: "spacer"; size: number };
 
 export interface HeaderBlock {

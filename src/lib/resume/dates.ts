@@ -9,6 +9,11 @@ export interface ParsedDate {
   day?: number;
 }
 
+export function cleanDate(v: string | null | undefined): string | undefined {
+  const s = (v ?? "").trim();
+  return s === "" ? undefined : s;
+}
+
 export function parsePartialDate(input: string | null | undefined): ParsedDate | null {
   if (!input) return null;
   const m = /^(\d{4})(?:-(\d{1,2}))?(?:-(\d{1,2}))?$/.exec(input.trim());

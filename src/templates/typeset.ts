@@ -88,10 +88,11 @@ function toCtx(doc: RenderDoc): TypesetContext {
 }
 
 function runToPlaced(run: Run, o: TypesetContext, forceFont?: "inter"): PlacedRun {
-  const size = round2(run.size ?? o.fontSize);
+  const size = round2(Number.isFinite(run.size ?? o.fontSize) ? (run.size ?? o.fontSize) : o.fontSize);
+  const text = typeof run.text === "string" ? run.text : String(run.text ?? "");
   const family = (forceFont ? "inter" : o.baseFont) as "inter" | "lora" | "mono";
   return {
-    text: run.text,
+    text,
     fontKey: pdfFontKey(family, Boolean(run.bold), Boolean(run.italic)),
     size,
     bold: Boolean(run.bold),

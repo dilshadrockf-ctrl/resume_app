@@ -1,85 +1,95 @@
 /**
  * Font access for PDF rendering. TTFs come from @expo-google-fonts npm
- * packages so builds work fully offline (no Google Fonts fetch).
+ * packages so builds and exports work fully offline (no Google Fonts fetch),
+ * while the web UI uses matching @fontsource woff2 files (§112).
  */
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
-const require = createRequire(import.meta.url ?? `file://${__filename}`);
+const require = createRequire(import.meta.url);
 
-type Weight = 400 | 500 | 600 | 700;
+export type PdfFontKey = string; // "<Base>/<weight>-<style>"
 
-const PACKAGES: Record<string, { pkg: string; base: string; hasBoldItalic: boolean }> = {
-  inter: { pkg: "@expo-google-fonts/inter", base: "Inter", hasBoldItalic: true },
-  lora: { pkg: "@expo-google-fonts/lora", base: "Lora", hasBoldItalic: false },
-  mono: { pkg: "@expo-google-fonts/jetbrains-mono", base: "JetBrainsMono", hasBoldItalic: false },
-};
+interface Family {
+  pkg: string;
+  base: string;
+  /** variant key -> [directory, filename] inside the package */
+  files: Record<string, [string, string]>;
+}
 
-const FILES: Record<string, Record<string, string>> = {
-  Inter: {
-    "400-normal": "Inter_400Regular.ttf",
-    "400-italic": "Inter_400Regular_Italic.ttf",
-    "500-normal": "Inter_500Medium.ttf",
-    "500-italic": "Inter_500Medium_Italic.ttf",
-    "600-normal": "Inter_600SemiBold.ttf",
-    "600-italic": "Inter_600SemiBold_Italic.ttf",
-    "700-normal": "Inter_700Bold.ttf",
-    "700-italic": "Inter_700Bold_Italic.ttf",
+const FAMILIES: Family[] = [
+  {
+    pkg: "@expo-google-fonts/inter",
+    base: "Inter",
+    files: {
+      "400-normal": ["400Regular", "Inter_400Regular.ttf"],
+      "400-italic": ["400Regular_Italic", "Inter_400Regular_Italic.ttf"],
+      "500-normal": ["500Medium", "Inter_500Medium.ttf"],
+      "500-italic": ["500Medium_Italic", "Inter_500Medium_Italic.ttf"],
+      "600-normal": ["600SemiBold", "Inter_600SemiBold.ttf"],
+      "600-italic": ["600SemiBold_Italic", "Inter_600SemiBold_Italic.ttf"],
+      "700-normal": ["700Bold", "Inter_700Bold.ttf"],
+      "700-italic": ["700Bold_Italic", "Inter_700Bold_Italic.ttf"],
+    },
   },
-  Lora: {
-    "400-normal": "Lora_400Regular.ttf",
-    "400-italic": "Lora_400Regular_Italic.ttf",
-    "500-normal": "Lora_500Medium.ttf",
-    "500-italic": "Lora_500Medium_Italic.ttf",
-    "600-normal": "Lora_600SemiBold.ttf",
-    "600-italic": "Lora_600SemiBold_Italic.ttf",
-    "700-normal": "Lora_700Bold.ttf",
-    "700-italic": "Lora_700Bold_Italic.ttf",
+  {
+    pkg: "@expo-google-fonts/lora",
+    base: "Lora",
+    files: {
+      "400-normal": ["400Regular", "Lora_400Regular.ttf"],
+      "400-italic": ["400Regular_Italic", "Lora_400Regular_Italic.ttf"],
+      "500-normal": ["500Medium", "Lora_500Medium.ttf"],
+      "500-italic": ["500Medium_Italic", "Lora_500Medium_Italic.ttf"],
+      "600-normal": ["600SemiBold", "Lora_600SemiBold.ttf"],
+      "600-italic": ["600SemiBold_Italic", "Lora_600SemiBold_Italic.ttf"],
+      "700-normal": ["700Bold", "Lora_700Bold.ttf"],
+      "700-italic": ["700Bold_Italic", "Lora_700Bold_Italic.ttf"],
+    },
   },
-  JetBrainsMono: {
-    "400-normal": "JetBrainsMono_400Regular.ttf",
-    "400-italic": "JetBrainsMono_400Regular_Italic.ttf",
-    "500-normal": "JetBrainsMono_500Medium.ttf",
-    "500-italic": "JetBrainsMono_500Medium_Italic.ttf",
-    "600-normal": "JetBrainsMono_600SemiBold.ttf",
-    "600-italic": "JetBrainsMono_600SemiBold_Italic.ttf",
-    "700-normal": "JetBrainsMono_700Bold.ttf",
-    "700-italic": "JetBrainsMono_700Bold_Italic.ttf",
+  {
+    pkg: "@expo-google-fonts/jetbrains-mono",
+    base: "JetBrainsMono",
+    files: {
+      "400-normal": ["400Regular", "JetBrainsMono_400Regular.ttf"],
+      "400-italic": ["400Regular_Italic", "JetBrainsMono_400Regular_Italic.ttf"],
+      "500-normal": ["500Medium", "JetBrainsMono_500Medium.ttf"],
+      "500-italic": ["500Medium_Italic", "JetBrainsMono_500Medium_Italic.ttf"],
+      "600-normal": ["600SemiBold", "JetBrainsMono_600SemiBold.ttf"],
+      "600-italic": ["600SemiBold_Italic", "JetBrainsMono_600SemiBold_Italic.ttf"],
+      "700-normal": ["700Bold", "JetBrainsMono_700Bold.ttf"],
+      "700-italic": ["700Bold_Italic", "JetBrainsMono_700Bold_Italic.ttf"],
+    },
   },
-};
-
-export type PdfFontKey = string; // "<base>/<variant>"
+];
 
 export function pdfFontKey(family: "inter" | "lora" | "mono", bold: boolean, italic: boolean): PdfFontKey {
-  const p = PACKAGES[family] ?? PACKAGES.inter!;
-  const weight: Weight = bold ? 700 : 400;
-  const variant = italic ? `${weight}-italic` : `${weight}-normal`;
-  return `${p.base}/${variant}`;
+  const fam = family === "lora" ? "Lora" : family === "mono" ? "JetBrainsMono" : "Inter";
+  const weight = bold ? "700" : "400";
+  return `${fam}/${weight}-${italic ? "italic" : "normal"}`;
 }
 
 let cache: Map<PdfFontKey, Uint8Array> | null = null;
 
-export function loadPdfFonts(): Map<PdfFontKey, Uint8Array> {
-  if (cache) return cache;
+export function loadPdfFonts(onlyKeys?: Set<string>): Map<PdfFontKey, Uint8Array> {
+  if (cache && (!onlyKeys || onlyKeys.size === 0)) return cache;
   const out = new Map<PdfFontKey, Uint8Array>();
-  for (const p of Object.values(PACKAGES)) {
-    for (const [variant, file] of Object.entries(FILES[p.base]!)) {
-      const key = `${p.base}/${variant}`;
+  for (const f of FAMILIES) {
+    const fallback = f.files["400-normal"]!;
+    for (const [variant, [dir, file]] of Object.entries(f.files)) {
+      const key = `${f.base}/${variant}`;
+      if (onlyKeys && onlyKeys.size > 0 && !onlyKeys.has(key)) continue;
       try {
-        const path = require.resolve(`${p.pkg}/${file}`);
-        out.set(key, new Uint8Array(readFileSync(path)));
+        out.set(key, new Uint8Array(readFileSync(require.resolve(`${f.pkg}/${dir}/${file}`))));
       } catch {
-        // Italic/medium variants may not exist for some families — fall back.
         try {
-          const path = require.resolve(`${p.pkg}/${FILES[p.base]!["400-normal"]}`);
-          out.set(key, new Uint8Array(readFileSync(path)));
+          out.set(key, new Uint8Array(readFileSync(require.resolve(`${f.pkg}/${fallback[0]}/${fallback[1]}`))));
         } catch {
-          /* tested by font unit test; build fails loudly if base missing */
+          /* base font missing => pdf renderer falls back to Helvetica */
         }
       }
     }
   }
-  cache = out;
+  if (!onlyKeys || onlyKeys.size === 0) cache = out;
   return out;
 }
 
@@ -89,10 +99,10 @@ export function cssFontStack(family: "inter" | "lora" | "mono"): string {
     case "lora":
       return "'Lora', Georgia, 'Times New Roman', serif";
     case "mono":
-      return "'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace";
+      return "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
     default:
       return "'Inter', ui-sans-serif, system-ui, sans-serif";
   }
 }
 
-export const FONT_LIMITS = 6; // curated professional fonts only (§112)
+export const FONT_LIMITS = 6; // curated professional fonts only

@@ -68,7 +68,7 @@ if (r.status !== 0) {
   process.exit(1);
 }
 const sql = (r.stdout || "").trim();
-if (!sql) {
+if (!sql || /empty migration/i.test(sql)) {
   console.log("No schema changes since last offline migration — nothing to do.");
   process.exit(0);
 }
