@@ -1,5 +1,5 @@
 import type { Block, EntryBlock, RenderDoc, RenderSection, Run } from "@/templates/blocks";
-import { pdfFontKey } from "@/templates/fonts";
+import { pdfFontKey } from "@/templates/font-css";
 
 /**
  * Typesetting + pagination shared by the PDF renderer and the live preview, so

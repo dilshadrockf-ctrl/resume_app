@@ -2,6 +2,7 @@
 import * as React from "react";
 
 type Theme = "light" | "dark" | "system";
+export type { Theme };
 
 const ThemeCtx = React.createContext<{ theme: Theme; setTheme: (t: Theme) => void; resolved: "light" | "dark" }>({
   theme: "system",
@@ -46,7 +47,3 @@ export function useTheme() {
   return React.useContext(ThemeCtx);
 }
 
-/** Reads stored theme server-side via cookie for flashless initial paint. */
-export function readThemeCookie(value: string | undefined | null): Theme {
-  return value === "light" || value === "dark" ? value : "system";
-}

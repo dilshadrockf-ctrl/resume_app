@@ -33,7 +33,7 @@ export async function createResumeAction(raw: { name: string }): Promise<ActionR
   });
 }
 
-export async function saveResumeAction(raw: SavePayload): Promise<ActionResult<{ savedAt: string; versionCreated: boolean }>> {
+export async function saveResumeAction(raw: SavePayload): Promise<ActionResult<{ savedAt: string; versionCreated: boolean; idMap: Record<string, string> }>> {
   return guard(async () => {
     const parsed = idDocSchema.safeParse(raw);
     if (!parsed.success) return fail("This document failed validation and was not saved.", "VALIDATION");
@@ -44,7 +44,7 @@ export async function saveResumeAction(raw: SavePayload): Promise<ActionResult<{
         label: parsed.data.label,
       });
       revalidatePath("/resumes");
-      return ok({ savedAt: result.savedAt, versionCreated: result.versionCreated });
+      return ok({ savedAt: result.savedAt, versionCreated: result.versionCreated, idMap: result.idMap ?? {} });
     } catch (e) {
       // Never lose the client's state: surface a retryable error verbatim.
       if (e instanceof Error && (e.message === "NOT_FOUND" || e.name === "ForbiddenError")) {
@@ -209,6 +209,27 @@ export async function getExportStatusAction(raw: { exportId: string }): Promise<
     const { getExport } = await import("@/features/export/service");
     const row = await getExport(ctx, input.exportId);
     return ok(row);
+  });
+}
+
+export async function loadVersionsAction(raw: { resumeId: string }): Promise<
+  ActionResult<Array<{ id: string; label: string; source: string; createdAt: string; note: string | null; isPrimary: boolean; atsScore: number | null; jobDescription: { title: string; company: string } | null }>>
+> {
+  return withValidation(resumeIdSchema, raw, async (input) => {
+    const ctx = await requireCtx();
+    const rows = await service.listVersions(ctx, input.resumeId);
+    return ok(
+      rows.map((r) => ({
+        id: r.id,
+        label: r.label,
+        source: String(r.source),
+        createdAt: r.createdAt.toISOString(),
+        note: r.note?.startsWith("hash:") ? r.note : r.note ?? null,
+        isPrimary: r.isPrimary,
+        atsScore: r.atsScore,
+        jobDescription: r.jobDescription ? { title: r.jobDescription.title, company: r.jobDescription.company ?? "" } : null,
+      })),
+    );
   });
 }
 

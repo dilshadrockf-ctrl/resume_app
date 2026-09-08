@@ -3,6 +3,7 @@ import { ForbiddenError, type Ctx } from "@/server/context";
 import { emptyResumeDocument, type ResumeDocument } from "@/lib/resume/document";
 import { loadResumeDocument, saveResumeDocument, type SaveOptions } from "@/features/resume/repository";
 import { getTemplate, TEMPLATES } from "@/templates/catalog";
+import { rowToItem, type LibraryKindKey, type LibraryRow } from "@/features/profile/entry-map";
 
 /**
  * Resume CRUD + versions + publishing. Deleting a resume never touches the
@@ -72,43 +73,27 @@ export async function createResume(ctx: Ctx, name: string): Promise<{ resumeId: 
     },
   });
   if (profile) {
-    const attach = (sectionKind: string, model: string, ids: string[]) => {
-      const section = doc.sections.find((s) => s.kind === sectionKind);
+    const attach = (sectionKind: string, libKind: LibraryKindKey, rows: LibraryRow[]) => {
+      const section = doc.sections.find((x) => x.kind === sectionKind);
       if (!section) return;
-      section.items = ids.map((id, i) => ({
-        kind: sectionKindToItemKind(sectionKind),
-        ref: { model: model as never, id },
-        visible: true,
-        order: i,
-        origin: "USER" as const,
-        ...({} as object),
-      })) as never;
-      if (ids.length) section.visible = true;
+      section.items = rows.map((r, i) => rowToItem(libKind, r, i)) as never;
+      if (rows.length) section.visible = true;
     };
-    attach("EXPERIENCE", "EXPERIENCE", profile.experiences.map((e) => e.id));
-    attach("EDUCATION", "EDUCATION", profile.educations.map((e) => e.id));
-    attach("PROJECTS", "PROJECT", profile.projects.map((e) => e.id));
-    attach("SKILLS", "SKILL", profile.skills.map((e) => e.id));
-    attach("CERTIFICATIONS", "CERTIFICATION", profile.certifications.map((e) => e.id));
-    attach("AWARDS", "AWARD", profile.awards.map((e) => e.id));
-    attach("PUBLICATIONS", "PUBLICATION", profile.publications.map((e) => e.id));
-    attach("LANGUAGES", "LANGUAGE", profile.languages.map((e) => e.id));
-    attach("VOLUNTEER", "VOLUNTEER", profile.volunteers.map((e) => e.id));
-    attach("CUSTOM", "CUSTOM_SECTION", profile.customSections.map((e) => e.id));
+    attach("EXPERIENCE", "experience", profile.experiences);
+    attach("EDUCATION", "education", profile.educations);
+    attach("PROJECTS", "project", profile.projects);
+    attach("SKILLS", "skill", profile.skills);
+    attach("CERTIFICATIONS", "certification", profile.certifications);
+    attach("AWARDS", "award", profile.awards);
+    attach("PUBLICATIONS", "publication", profile.publications);
+    attach("LANGUAGES", "language", profile.languages);
+    attach("VOLUNTEER", "volunteer", profile.volunteers);
+    attach("CUSTOM", "custom", profile.customSections);
     doc.summary = profile.summary ?? "";
   }
   const saved = await saveResumeDocument(ctx.userId, resume.id, doc, { mode: "manual", label: "Initial draft", source: "MANUAL", syncEntries: false, createVersion: true });
   void saved;
   return { resumeId: resume.id, doc };
-}
-
-function sectionKindToItemKind(kind: string) {
-  const map: Record<string, string> = {
-    EXPERIENCE: "experience", EDUCATION: "education", PROJECTS: "project", SKILLS: "skill",
-    CERTIFICATIONS: "certification", AWARDS: "award", PUBLICATIONS: "publication",
-    LANGUAGES: "language", VOLUNTEER: "volunteer", CUSTOM: "custom",
-  };
-  return map[kind] as never;
 }
 
 export async function duplicateResume(ctx: Ctx, resumeId: string, name?: string): Promise<string> {

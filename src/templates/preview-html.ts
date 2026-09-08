@@ -1,5 +1,5 @@
 import type { PlacedDoc, PlacedLine, PlacedRun, RectBox, TextBox } from "@/templates/typeset";
-import { cssFontStack } from "@/templates/fonts";
+import { cssFontStack } from "@/templates/font-css";
 
 /**
  * Preview renderer shared by the live editor and the public resume page:

@@ -4,11 +4,12 @@
  * while the web UI uses matching @fontsource woff2 files (§112).
  */
 import { readFileSync } from "node:fs";
+export { cssFontStack, pdfFontKey, type FontFamily, type PdfFontKey } from "@/templates/font-css";
+import type { PdfFontKey } from "@/templates/font-css";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
-export type PdfFontKey = string; // "<Base>/<weight>-<style>"
 
 interface Family {
   pkg: string;
@@ -62,11 +63,6 @@ const FAMILIES: Family[] = [
   },
 ];
 
-export function pdfFontKey(family: "inter" | "lora" | "mono", bold: boolean, italic: boolean): PdfFontKey {
-  const fam = family === "lora" ? "Lora" : family === "mono" ? "JetBrainsMono" : "Inter";
-  const weight = bold ? "700" : "400";
-  return `${fam}/${weight}-${italic ? "italic" : "normal"}`;
-}
 
 let cache: Map<PdfFontKey, Uint8Array> | null = null;
 
@@ -94,15 +90,4 @@ export function loadPdfFonts(onlyKeys?: Set<string>): Map<PdfFontKey, Uint8Array
 }
 
 /** Family tokens used by the HTML preview — mapped to CSS font stacks. */
-export function cssFontStack(family: "inter" | "lora" | "mono"): string {
-  switch (family) {
-    case "lora":
-      return "'Lora', Georgia, 'Times New Roman', serif";
-    case "mono":
-      return "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
-    default:
-      return "'Inter', ui-sans-serif, system-ui, sans-serif";
-  }
-}
-
 export const FONT_LIMITS = 6; // curated professional fonts only

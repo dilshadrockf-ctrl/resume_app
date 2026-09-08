@@ -10,6 +10,7 @@ import { rateLimit } from "@/services/rate-limit";
 import { guard, ok, fail, withValidation, type ActionResult } from "@/server/action-utils";
 import { audit, requireCtx, track } from "@/server/context";
 import { appConfig } from "@/lib/env";
+import { log } from "@/lib/logger";
 import { signIn, signOut } from "@/lib/auth";
 
 const emailSchema = z.string().trim().toLowerCase().email().max(254);
@@ -207,6 +208,45 @@ export async function resendVerificationAction(): Promise<ActionResult<{ sent: b
       text: `Verify your email:\n${appConfig.baseUrl}/verify-email?token=${rawToken}`,
     });
     return ok({ sent: true });
+  });
+}
+
+const changeSchema = z.object({ current: z.string().min(1).max(200), next: z.string().min(10).max(200) });
+
+export async function changePasswordAction(raw: { current: string; next: string }): Promise<ActionResult<undefined>> {
+  return withValidation(changeSchema, raw, async (input) => {
+    const { requireCtx } = await import("@/server/context");
+    const ctx = await requireCtx();
+    const user = await db.user.findUnique({ where: { id: ctx.userId }, select: { passwordHash: true, email: true } });
+    if (!user?.passwordHash) return fail("This account uses a different sign-in method.", "VALIDATION");
+    const { verifyPassword } = await import("@/lib/password");
+    if (!(await verifyPassword(user.passwordHash, input.current))) return fail("Current password is incorrect.", "UNAUTHORIZED", { current: "Wrong password" });
+    const strength = checkPasswordStrength(input.next, user.email);
+    if (!strength.ok) return fail(strength.message ?? "Weak password", "VALIDATION", { next: strength.message ?? "" });
+    const passwordHash = await hashPassword(input.next);
+    await db.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: ctx.userId }, data: { passwordHash } });
+      await tx.session.deleteMany({ where: { userId: ctx.userId } });
+    });
+    await audit(ctx, "password_changed");
+    return ok(undefined);
+  });
+}
+
+export async function deleteAccountAction(raw: { password: string }): Promise<ActionResult<undefined>> {
+  return withValidation(z.object({ password: z.string().min(1).max(200) }), raw, async (input) => {
+    const { requireCtx } = await import("@/server/context");
+    const ctx = await requireCtx();
+    const user = await db.user.findUnique({ where: { id: ctx.userId } });
+    if (!user?.passwordHash) return fail("Cannot verify password for this account.", "VALIDATION");
+    const { verifyPassword } = await import("@/lib/password");
+    if (!(await verifyPassword(user.passwordHash, input.password))) return fail("Password incorrect — account NOT deleted.", "UNAUTHORIZED");
+    // Deletion trail lives in the server log — DB rows (including audit
+    // history) are intentionally erased, per the right-to-be-forgotten flow.
+    log.info("account deleted", { userId: ctx.userId });
+    await db.resume.deleteMany({ where: { careerProfile: { userId: ctx.userId } } });
+    await db.user.delete({ where: { id: ctx.userId } }); // cascades: profile, jobs, applications, exports…
+    return ok(undefined);
   });
 }
 

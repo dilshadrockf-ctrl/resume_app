@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import "./globals.css";
-import { ThemeProvider, readThemeCookie } from "@/components/theme";
+import { ThemeProvider } from "@/components/theme";
+import { readThemeCookie } from "@/lib/theme-cookie";
 import { Toaster } from "@/components/ui/toast";
 import { TooltipProvider } from "@/components/ui/overlays";
 import { env } from "@/lib/env";

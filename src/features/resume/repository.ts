@@ -363,6 +363,8 @@ export interface SaveResult {
   versionCreated: boolean;
   versionId?: string;
   contentHash: string;
+  /** tempId → created library row id; the editor must adopt these refs */
+  idMap: Record<string, string>;
 }
 
 /**
@@ -552,7 +554,7 @@ export async function saveResumeDocument(
         select: { note: true },
       });
       if (lastAuto?.note === `hash:${contentHash}`) {
-        return { savedAt: new Date().toISOString(), versionCreated: false, contentHash };
+        return { savedAt: new Date().toISOString(), versionCreated: false, contentHash, idMap: Object.fromEntries(createdIds) };
       }
     }
     const snapshot = await resumeDocumentSchema.parseAsync(doc);
@@ -569,7 +571,7 @@ export async function saveResumeDocument(
     versionCreated = true;
     versionId = version.id;
   }
-  return { savedAt: new Date().toISOString(), versionCreated, versionId, contentHash };
+  return { savedAt: new Date().toISOString(), versionCreated, versionId, contentHash, idMap: Object.fromEntries(createdIds) };
 }
 
 /** Map a document section item back onto its library entry row (shared edit). */

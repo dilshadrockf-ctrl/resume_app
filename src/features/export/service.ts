@@ -3,10 +3,7 @@ import { log } from "@/lib/logger";
 import { ForbiddenError, type Ctx } from "@/server/context";
 import { enqueue, registerHandler } from "@/services/queue";
 import { storage, makeKey } from "@/services/storage";
-import { buildRenderDoc, type RenderDoc } from "@/templates/blocks";
-import { renderResumePdf } from "@/render/pdf";
-import { renderAtsText } from "@/render/text";
-import { buildDocx } from "@/render/docx";
+import type { RenderDoc } from "@/templates/blocks";
 import type { ResumeDocument } from "@/lib/resume/document";
 import { saveResumeDocument } from "@/features/resume/repository";
 import { computeStats } from "@/lib/resume/stats";
@@ -91,6 +88,7 @@ export async function listExports(ctx: Ctx, take = 25) {
 // ───────────────────────────── job handler ───────────────────────────────────
 
 async function renderDocumentFor(doc: ResumeDocument): Promise<RenderDoc> {
+  const { buildRenderDoc } = await import("@/templates/blocks");
   return buildRenderDoc(doc);
 }
 
@@ -120,9 +118,16 @@ async function runExport(exportId: string): Promise<{ storageKey: string; bytes:
 
     const render = await renderDocumentFor(doc);
     let data: Uint8Array;
-    if (row.type === "PDF") data = (await renderResumePdf(render)).bytes;
-    else if (row.type === "DOCX") data = await buildDocx(render);
-    else data = new TextEncoder().encode(renderAtsText(render));
+    if (row.type === "PDF") {
+      const { renderResumePdf } = await import("@/render/pdf");
+      data = (await renderResumePdf(render)).bytes;
+    } else if (row.type === "DOCX") {
+      const { buildDocx } = await import("@/render/docx");
+      data = await buildDocx(render);
+    } else {
+      const { renderAtsText } = await import("@/render/text");
+      data = new TextEncoder().encode(renderAtsText(render));
+    }
 
     const store = await storage();
     const key = makeKey(`exports/${row.userId}`, row.userId, row.fileName ?? "resume");
