@@ -1,0 +1,40 @@
+# deps
+node_modules/
+.next/
+out/
+dist/
+build/
+standalone/
+*.tsbuildinfo
+next-env.d.ts
+
+# env / secrets
+.env
+.env.*
+!.env.example
+
+# db / local data
+prisma/dev.db
+/data
+/storage
+/tmp/
+
+# logs
+logs/
+*.log
+npm-debug.log*
+
+# testing
+coverage/
+playwright-report/
+test-results/
+.vite/
+tmp-pgdata/
+.dev/
+
+# editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+.DS_Store
+prisma/.offline-snapshot.prisma
