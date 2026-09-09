@@ -55,6 +55,13 @@ generates the Prisma client with zero engine downloads
 Postgres of your own, set `DATABASE_URL` in `.env` and it will be used
 instead.
 
+**Windows and macOS work too:** the embedded-PostgreSQL binaries are
+OS-specific _optional_ dependencies, so `npm install` fetches only your
+platform's build and skips the rest (no `EBADPLATFORM` errors — just don't
+pass `--no-optional`). `npm run setup` runs in PowerShell as-is. If the
+embedded server can't start on your machine, use `docker compose up -d db`
+(or any Postgres 16+) and set `DATABASE_URL` in `.env` before running setup.
+
 Then: `npm run typecheck && npm test` — 23 unit tests cover the matching
 engine, cover-letter scaffold, import parser and the AI guardrail.
 `npm run test:e2e` runs HTTP smoke checks against a live instance.

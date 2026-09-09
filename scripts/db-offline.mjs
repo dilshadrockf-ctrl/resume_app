@@ -44,6 +44,8 @@ function prisma(args, opts = {}) {
     stdio: ["ignore", opts.stdout === "pipe" ? "pipe" : "inherit", "pipe"],
     env,
     encoding: "utf8",
+    // Windows needs a shell to resolve `npx` (.cmd shims, PATHEXT).
+    shell: process.platform === "win32",
     ...opts.spawn,
   });
 }
