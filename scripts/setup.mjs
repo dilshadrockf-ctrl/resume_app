@@ -15,7 +15,8 @@ import { randomBytes } from "node:crypto";
 
 const log = (m) => console.log(`\x1b[36msetup\x1b[0m ${m}`);
 const sh = (cmd, args, opts = {}) => {
-  const r = spawnSync(cmd, args, { stdio: "inherit", shell: false, ...opts });
+  // Windows needs a shell to resolve `npx`/`node` (.cmd shims, PATHEXT).
+  const r = spawnSync(cmd, args, { stdio: "inherit", shell: process.platform === "win32", ...opts });
   if (r.status !== 0 && !opts.allowFail) {
     console.error(`\x1b[31msetup failed:\x1b[0m ${cmd} ${args.join(" ")}`);
     process.exit(r.status ?? 1);

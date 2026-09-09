@@ -9,7 +9,11 @@ import { join } from "node:path";
 const marker = join(process.cwd(), "node_modules", ".prisma", "client", "index.js");
 if (existsSync(marker)) process.exit(0);
 
-const r = spawnSync("npx", ["prisma", "generate"], { stdio: "inherit" });
+// Windows needs a shell to resolve `npx` (.cmd shims, PATHEXT).
+const r = spawnSync("npx", ["prisma", "generate"], {
+  stdio: "inherit",
+  shell: process.platform === "win32",
+});
 if (r.status !== 0) {
   console.log(
     "\n(prisma generate did not run during install — that's OK; run `npm run setup` " +
