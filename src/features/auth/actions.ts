@@ -94,12 +94,14 @@ export async function loginAction(raw: {
     const limit = await rateLimit("login", `form:${parsed.data.email}`);
     if (!limit.ok) return fail("Too many attempts. Try again in a minute.", "RATE_LIMITED");
     try {
+      const redirectTo = parsed.data.redirectTo ?? "/dashboard";
       await signIn("credentials", {
         email: parsed.data.email,
         password: parsed.data.password,
-        redirectTo: parsed.data.redirectTo ?? "/dashboard",
+        redirectTo,
+        redirect: false,
       });
-      return ok({ redirectTo: parsed.data.redirectTo ?? "/dashboard" });
+      return ok({ redirectTo });
     } catch (e) {
       if (e instanceof AuthError) {
         const msg =
@@ -108,7 +110,7 @@ export async function loginAction(raw: {
             : "Sign-in failed. Try again.";
         return fail(msg, e.type === "CredentialsSignin" ? "UNAUTHORIZED" : "INTERNAL");
       }
-      throw e; // NEXT_REDIRECT on success is handled by Next
+      throw e;
     }
   });
 }
