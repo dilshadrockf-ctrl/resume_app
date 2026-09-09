@@ -31,9 +31,16 @@ const r = spawnSync("npx", ["prisma", "generate"], {
   env,
 });
 if (r.status !== 0) {
+  // During `npm install`/`npm ci` this must never break the install; the client
+  // can be regenerated later with `npm run setup`. When called from a start
+  // command (predev/prestart/preworker) there is no point booting an app that
+  // would crash with "@prisma/client did not initialize yet", so fail loudly.
+  const isInstall = process.env.npm_lifecycle_event === "postinstall";
   console.log(
-    "\n(prisma generate did not run during install — run `npm run setup`, or " +
-      "`PRISMA_OFFLINE=1 npm run db:generate`, after configuring .env to generate the client.)\n",
+    "\n(prisma generate did not run" +
+      (isInstall ? " during install" : "") +
+      " — run `npm run setup`, or `PRISMA_OFFLINE=1 npm run db:generate`, after configuring .env to generate the client.)\n",
   );
+  process.exit(isInstall ? 0 : 1);
 }
 process.exit(0);
