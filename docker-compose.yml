@@ -1,0 +1,106 @@
+# ResumeForge, entirely local. No cloud accounts, no proprietary services.
+#
+#   docker compose up --build            # app + postgres (queue runs in-process, enough for one node)
+#   docker compose --profile redis up    # + dedicated queue/worker with Redis for retries at scale
+#
+# First boot: the migrate service applies prisma/migrations and exits.
+name: resumeforge
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: resume
+      POSTGRES_PASSWORD: resume
+      POSTGRES_DB: resumebuilder
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resume -d resumebuilder"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  migrate:
+    build:
+      context: .
+      target: full
+    command: sh -c "sleep 2 && node node_modules/.bin/prisma migrate deploy"
+    environment:
+      DATABASE_URL: postgresql://resume:resume@db:5432/resumebuilder
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://resume:resume@db:5432/resumebuilder
+      # generate: openssl rand -base64 32
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env before `docker compose up`}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      AUTH_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      STORAGE_DRIVER: filesystem
+      FILESYSTEM_STORAGE_DIR: /app/storage
+      REDIS_URL: "" # empty = in-process queue (fine for one node)
+      BILLING_ENABLED: "false" # billing is dormant by design
+      AI_PROVIDER: ${AI_PROVIDER:-none}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_DEFAULT_MODEL: ${AI_DEFAULT_MODEL:-}
+    volumes:
+      - appdata:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'node -e "fetch(''http://localhost:3000/api/health'').then(r=>process.exit(r.ok?0:1))"',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Optional: production-style worker with Redis. The queue library retries
+  # and backoff identically to the in-process mode, so single-node setups do
+  # not need this.
+  redis:
+    image: redis:7-alpine
+    profiles: ["redis"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      target: full
+    command: node node_modules/.bin/tsx src/workers/main.ts
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://resume:resume@db:5432/resumebuilder
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: filesystem
+      FILESYSTEM_STORAGE_DIR: /app/storage
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env before `docker compose up`}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      AUTH_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      - appdata:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    profiles: ["redis"]
+
+volumes:
+  dbdata:
+  appdata:

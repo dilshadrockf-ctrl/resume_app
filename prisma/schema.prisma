@@ -1,0 +1,1113 @@
+// ResumeForge — PostgreSQL schema.
+// Design rules (§57): deleting a Resume (or version) NEVER cascades into the
+// CareerProfile; hiding an item is a flag on ResumeSectionItem, not a deletion.
+// Multi-tenancy (§58): nearly every user-owned table carries userId and every
+// query goes through ownership-checked service functions.
+
+generator client {
+  provider        = "prisma-client-js"
+  engineType      = "client"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Auth.js core ────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  emailVerified DateTime?
+  /// Argon2id hash — never a plaintext password (§6).
+  passwordHash  String?
+  role          UserRole  @default(USER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts            Account[]
+  sessions            Session[]
+  profile             Profile?
+  careerProfile       CareerProfile?
+  jobs                JobDescription[]
+  applications        Application[]
+  applicationNotes    ApplicationNote[]
+  coverLetters        CoverLetter[]
+  exports             Export[]
+  aiGenerations       AIGeneration[]
+  usageEvents         UsageEvent[]
+  subscription        Subscription?
+  entitlements        Entitlement[]
+  jobMatches          JobMatch[]
+  resumeAnalyses      ResumeAnalysis[]
+  auditLogs           AuditLog[]
+  templateFavorites   TemplateFavorite[]
+  templateRecents     TemplateRecent[]
+  recommendations     Recommendation[]
+  importJobs          ImportJob[]
+  jobRuns             JobRun[]
+  authTokens          AuthToken[]
+
+  @@index([createdAt])
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Email verification + password reset tokens (hashed, §59).
+model AuthToken {
+  id         String        @id @default(cuid())
+  /// sha256 of the raw token — raw value only ever lives in the email link.
+  tokenHash  String        @unique
+  purpose    AuthTokenKind
+  email      String
+  userId     String?
+  user       User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime      @default(now())
+
+  @@index([email, purpose])
+}
+
+enum AuthTokenKind {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+  DATA_EXPORT
+}
+
+// ─────────────────────────────── User settings ───────────────────────────────
+
+model Profile {
+  userId       String   @id
+  displayName  String?
+  theme        Theme    @default(SYSTEM)
+  locale       String   @default("en") // UI language — independent of resume language (§110)
+  headline     String?
+  email        String?
+  phone        String?
+  website      String?
+  linkedin     String?
+  github       String?
+  location     String?
+  // §130 industry context / §131 career transition
+  targetRole   String?
+  industry     String?
+  seniority    String?
+  country      String?
+  currentField String?
+  targetField  String?
+  onboardingAt DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+// ─────────────────────────── Career profile (library) ────────────────────────
+// The single source of reusable career facts (§19). Resumes reference it.
+
+model CareerProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  summary   String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences     Experience[]
+  educations      Education[]
+  projects        Project[]
+  skills          Skill[]
+  certifications  Certification[]
+  awards          Award[]
+  publications    Publication[]
+  languages       LanguageEntry[]
+  volunteers      VolunteerExperience[]
+  customSections  CustomSection[]
+  libraryItems    LibraryItem[]
+  resumes         Resume[]
+}
+
+/// Origin tracking for factual integrity (§132).
+enum ContentOrigin {
+  USER
+  IMPORTED
+  AI_GENERATED
+  AI_MODIFIED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  FREELANCE
+  SELF_EMPLOYED
+  BOUNDED_VOLUNTEER
+}
+
+/// Shared "entry" attributes kept flat per table (simpler queries + ownership).
+model Experience {
+  id            String         @id @default(cuid())
+  careerProfileId String
+  order         Int            @default(0)
+  employer      String
+  title         String
+  employmentType EmploymentType @default(FULL_TIME)
+  location      String?
+  startDate     String? // ISO yyyy-MM or yyyy-MM-dd (string to preserve partial dates)
+  endDate       String?
+  current       Boolean        @default(false)
+  companyUrl    String?
+  description   String?        @db.Text
+  bullets       String[]
+  achievements  String[]
+  technologies  String[]
+  skillsUsed    String[]
+  projectNote   String?
+  origin        ContentOrigin  @default(USER)
+  archivedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+model Education {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  institution     String
+  degree          String?
+  field           String?
+  location        String?
+  startDate       String?
+  endDate         String?
+  current         Boolean  @default(false)
+  gpa             String?
+  honors          String?
+  coursework      String[]
+  activities      String[]
+  description     String?  @db.Text
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  name            String
+  role            String?
+  url             String?
+  startDate       String?
+  endDate         String?
+  description     String?  @db.Text
+  bullets         String[]
+  technologies    String[]
+  skillsUsed      String[]
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+enum SkillCategory {
+  PROGRAMMING
+  TECHNICAL
+  CLOUD
+  DEVOPS
+  NETWORKING
+  SECURITY
+  DATABASES
+  TOOLS
+  FRAMEWORKS
+  BUSINESS
+  LEADERSHIP
+  SOFT
+  INDUSTRY
+  OTHER
+}
+
+model Skill {
+  id              String        @id @default(cuid())
+  careerProfileId String
+  name            String
+  category        SkillCategory @default(OTHER)
+  level           Int? // 1-5 optional proficiency
+  yearsUsed       Int?
+  keywords        String[]
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([careerProfileId, name, category])
+  @@index([careerProfileId, category])
+}
+
+model Certification {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  name            String
+  issuer          String?
+  credentialId    String?
+  url             String?
+  issueDate       String?
+  expiryDate      String?
+  inProgress      Boolean  @default(false)
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+model Award {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  title           String
+  issuer          String?
+  date            String?
+  blurb           String?  @db.Text
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+model Publication {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  title           String
+  publisher       String?
+  url             String?
+  date            String?
+  authors         String[]
+  citationStyle   String?
+  blurb           String?  @db.Text
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+model LanguageEntry {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  name            String
+  proficiency     String? // e.g. "Native", "C1", "Professional"
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([careerProfileId, name])
+}
+
+model VolunteerExperience {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  organization    String
+  role            String
+  location        String?
+  startDate       String?
+  endDate         String?
+  current         Boolean  @default(false)
+  description     String?  @db.Text
+  bullets         String[]
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+/// Custom membership/training/interests/etc. sections (§23)
+model CustomSection {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  order           Int      @default(0)
+  title           String // e.g. "Professional Memberships"
+  kind            String   @default("generic") // memberships | training | interests | generic
+  items           String[] // simple line entries
+  origin          ContentOrigin @default(USER)
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, order])
+}
+
+/// §46 Content Library: reusable saved snippets (summaries, bullets, …)
+model LibraryItem {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  kind            LibraryItemKind
+  text            String   @db.Text
+  tags            String[]
+  sourceRef       String? // e.g. "experience:<id>" where it came from
+  origin          ContentOrigin @default(USER)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+
+  @@index([careerProfileId, kind])
+}
+
+enum LibraryItemKind {
+  SUMMARY
+  BULLET
+  ACHIEVEMENT
+  SKILL
+  PROJECT
+}
+
+// ─────────────────────────────── Resumes ─────────────────────────────────────
+
+enum SectionKind {
+  SUMMARY
+  EXPERIENCE
+  EDUCATION
+  SKILLS
+  PROJECTS
+  CERTIFICATIONS
+  AWARDS
+  PUBLICATIONS
+  LANGUAGES
+  VOLUNTEER
+  CUSTOM
+}
+
+model Resume {
+  id              String   @id @default(cuid())
+  careerProfileId String
+  name            String
+  description     String?
+  templateId      String   @default("ats-classic")
+  templateConfig  Json     @default("{}")
+  paperSize       PaperSize @default(A4)
+  resumeLanguage  String   @default("en")
+  // §94 public resumes — private unless explicitly published.
+  slug            String?  @unique
+  publicFields    Json     @default("{}")
+  publishedAt     DateTime?
+  viewCount       Int      @default(0)
+  primaryVersionId String?
+  archivedAt      DateTime?
+  deletedAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  careerProfile CareerProfile     @relation(fields: [careerProfileId], references: [id], onDelete: Cascade)
+  sections      ResumeSection[]
+  versions      ResumeVersion[]
+  imports       ImportJob[]
+
+  @@index([careerProfileId])
+  @@index([updatedAt])
+}
+
+enum PaperSize {
+  A4
+  LETTER
+}
+
+/// §20/§44: a version is a full renderable snapshot (JSON) of the composed doc.
+model ResumeVersion {
+  id          String   @id @default(cuid())
+  resumeId    String
+  label       String   @default("Draft")
+  // §21: tailored versions may target a job description
+  jobDescriptionId String?
+  // §177: provenance/snapshot info
+  source      VersionSource @default(MANUAL)
+  note        String?
+  snapshot    Json // full ResumeDocument (composition) at save time
+  atsScore    Int?
+  jobMatch    Int?
+  pageEstimate Int?
+  isPrimary   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  createdBy   String?
+
+  resume      Resume    @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  analyses    ResumeAnalysis[]
+  matches     JobMatch[]
+  coverLetters CoverLetter[]
+  exports     Export[]
+  recommendations Recommendation[]
+
+  @@index([resumeId, createdAt])
+}
+
+enum VersionSource {
+  MANUAL
+  AUTOSAVE
+  AI_TAILOR
+  ONE_PAGE
+  IMPORT
+  DUPLICATE
+  RESTORE
+  TEMPLATE
+}
+
+/// Resume-level section: title/visibility/order. Backing career entries are
+/// referenced, never copied-by-delete (§57).
+model ResumeSection {
+  id       String      @id @default(cuid())
+  resumeId String
+  kind     SectionKind
+  title    String? // per-resume override of the section heading
+  order    Int         @default(0)
+  visible  Boolean     @default(true)
+  items    ResumeSectionItem[]
+
+  resume Resume @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  @@unique([resumeId, kind])
+  @@index([resumeId, order])
+}
+
+enum EntryRefModel {
+  EXPERIENCE
+  EDUCATION
+  PROJECT
+  SKILL
+  CERTIFICATION
+  AWARD
+  PUBLICATION
+  LANGUAGE
+  VOLUNTEER
+  CUSTOM_SECTION
+}
+
+/// Join row: section -> career entry, with per-resume overrides + visibility.
+model ResumeSectionItem {
+  id            String        @id @default(cuid())
+  sectionId     String
+  model         EntryRefModel
+  entryId       String
+  order         Int           @default(0)
+  visible       Boolean       @default(true) // §108 hide without deleting
+  override      Json          @default("{}") // per-resume field overrides
+
+
+
+
+
+
+
+
+
+
+
+  // Polymorphic reference {model, entryId} resolved service-side; deliberately
+  // no FK relation — hiding an item never cascades into career data (§57).
+
+  section ResumeSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@unique([sectionId, model, entryId])
+}
+
+// ─────────────────────────────── Imports (§27/§28) ───────────────────────────
+
+enum ImportStatus {
+  QUEUED
+  EXTRACTING
+  PARSING
+  NEEDS_REVIEW
+  IMPORTED
+  FAILED
+}
+
+model ImportJob {
+  id        String       @id @default(cuid())
+  userId    String
+  resumeId  String?
+  resume    Resume?      @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  status    ImportStatus @default(QUEUED)
+  fileName  String
+  mimeType  String
+  bytes     Int
+  storageKey String?
+  error     String?
+  result    Json? // normalized doc + per-section confidence for review
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+// ─────────────────────────────── ATS + jobs (§35-§41) ───────────────────────
+
+model JobDescription {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  company     String?
+  location    String?
+  url         String?
+  salary      String?
+  rawText     String   @db.Text
+  parsed      Json? // extracted requirements/keywords
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matches        JobMatch[]
+  versions       ResumeVersion[]
+  coverLetters   CoverLetter[]
+  applications   Application[]
+
+  @@index([userId, createdAt])
+}
+
+model JobMatch {
+  id               String   @id @default(cuid())
+  userId           String
+  jobDescriptionId String
+  resumeVersionId  String
+  score            Int // 0-100
+  breakdown        Json // explainable component scores (§40)
+  gaps             Json // missing/weak/reordered recommendations
+  status           MatchStatus @default(REVIEW)
+  createdAt        DateTime @default(now())
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription  @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+  resumeVersion  ResumeVersion   @relation(fields: [resumeVersionId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+
+  @@index([userId, createdAt])
+}
+
+enum MatchStatus {
+  REVIEW
+  TAILORED
+  IGNORED
+}
+
+model ResumeAnalysis {
+  id        String   @id @default(cuid())
+  userId    String
+  kind      AnalysisKind
+  resumeVersionId String
+  score     Int
+  breakdown Json // component scores with explanations (§36/§172)
+  issues    Json // flat issue list
+  atsEngineVersion String
+  semantic  Json? // optional AI-assisted findings
+  createdAt DateTime @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeVersion ResumeVersion @relation(fields: [resumeVersionId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+
+  @@index([resumeVersionId, createdAt])
+}
+
+enum AnalysisKind {
+  ATS
+  QUALITY
+}
+
+/// §17: AI modifications as Original vs Suggested with accept/reject/edit/undo.
+model Recommendation {
+  id         String   @id @default(cuid())
+  userId     String
+  analysisId String?
+  jobMatchId String?
+  resumeVersionId String?
+  resumeVersion ResumeVersion? @relation(fields: [resumeVersionId], references: [id], onDelete: SetNull)
+  sectionKind SectionKind
+  entryRef    String? // e.g. "experience:<id>"
+  action      RecoAction
+  rationale   String?  @db.Text
+  original    String?  @db.Text
+  suggested   String?  @db.Text
+  // §177 snapshot of the affected data before bulk transformations (undo support)
+  snapshotBefore Json?
+  edited      String?  @db.Text
+  status      RecoStatus @default(PENDING)
+  promptKey   String?
+  promptVersion String?
+  provider    String?
+  model       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analysis  ResumeAnalysis?  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  jobMatch  JobMatch?        @relation(fields: [jobMatchId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+enum RecoAction {
+  REWRITE_BULLET
+  ADD_BULLET
+  REWRITE_SUMMARY
+  REORDER_SECTIONS
+  REORDER_ENTRIES
+  PIN_ENTRY
+  HIDE_ENTRY
+  ADD_KEYWORD
+  PRIORITY_SKILLS
+  SHORTEN_TEXT
+  COMPRESS_LAYOUT
+  GENERIC
+}
+
+enum RecoStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  UNDONE
+}
+
+// ─────────────────────────────── Cover letters (§42) ────────────────────────
+
+enum CoverLetterTone {
+  PROFESSIONAL
+  CONCISE
+  TRADITIONAL
+  TECHNICAL
+  EXECUTIVE
+  FRIENDLY
+}
+
+enum CoverLetterLength {
+  SHORT
+  STANDARD
+  DETAILED
+}
+
+model CoverLetter {
+  id              String   @id @default(cuid())
+  userId          String
+  company         String
+  role            String
+  hiringManager   String?
+  tone            CoverLetterTone @default(PROFESSIONAL)
+  length          CoverLetterLength @default(STANDARD)
+  content         String   @db.Text
+  status          CoverLetterStatus @default(DRAFT)
+  jobDescriptionId String?
+  resumeVersionId String?
+  origin          ContentOrigin @default(USER)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  resumeVersion  ResumeVersion?  @relation(fields: [resumeVersionId], references: [id], onDelete: SetNull)
+  applications   Application[]
+
+  @@index([userId, createdAt])
+}
+
+enum CoverLetterStatus {
+  DRAFT
+  FINAL
+  SENT
+}
+
+// ─────────────────────────────── Applications (§43) ─────────────────────────
+
+enum ApplicationStatus {
+  SAVED
+  PREPARING
+  APPLIED
+  RECRUITER_SCREEN
+  INTERVIEW
+  TECHNICAL_INTERVIEW
+  FINAL_INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id              String   @id @default(cuid())
+  userId          String
+  company         String
+  role            String
+  url             String?
+  salary          String?
+  location        String?
+  status          ApplicationStatus @default(SAVED)
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  notes           String?  @db.Text
+  appliedAt       DateTime?
+  followUpAt      DateTime?
+  interviewAt     DateTime?
+  resumeVersionId String?
+  coverLetterId   String?
+  jobDescriptionId String?
+  closedAt        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  coverLetter  CoverLetter?    @relation(fields: [coverLetterId], references: [id], onDelete: SetNull)
+  jobDescription JobDescription? @relation(fields: [jobDescriptionId], references: [id], onDelete: SetNull)
+  notesList    ApplicationNote[]
+
+  @@index([userId, status])
+  @@index([userId, updatedAt])
+}
+
+model ApplicationNote {
+  id            String   @id @default(cuid())
+  applicationId String
+  userId        String
+  body          String   @db.Text
+  createdAt     DateTime @default(now())
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([applicationId])
+}
+
+// ─────────────────────────────── Templates (§29-§33) ────────────────────────
+
+model Template {
+  id               String   @id
+  name             String
+  description      String
+  atsCompatibility AtsRating @default(GOOD)
+  pageModes        Json     @default("[\"one\",\"multi\"]")
+  columns          Int      @default(1)
+  photoSupport     Boolean  @default(false)
+  config          Json // rendering configuration defaults
+  version          Int      @default(1) // §175 template versioning
+  enabled          Boolean  @default(true)
+  createdAt        DateTime @default(now())
+
+  favorites TemplateFavorite[]
+  recents   TemplateRecent[]
+
+  @@index([atsCompatibility])
+}
+
+enum AtsRating {
+  EXCELLENT
+  GOOD
+  LIMITED
+}
+
+model TemplateFavorite {
+  userId     String
+  templateId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@id([userId, templateId])
+}
+
+/// §123 recently used templates
+model TemplateRecent {
+  userId     String
+  templateId String
+  lastUsedAt DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@id([userId, templateId])
+}
+
+// ─────────────────────────────── Exports & jobs (§10/§74) ──────────────────
+
+enum ExportType {
+  PDF
+  DOCX
+  TXT
+  DATA_JSON
+  DATA_ZIP
+}
+
+enum ExportStatus {
+  QUEUED
+  PROCESSING
+  READY
+  FAILED
+}
+
+model Export {
+  id              String       @id @default(cuid())
+  userId          String
+  type            ExportType
+  status          ExportStatus @default(QUEUED)
+  resumeVersionId String?
+  resumeVersion   ResumeVersion? @relation(fields: [resumeVersionId], references: [id], onDelete: SetNull)
+  storageKey      String?
+  fileName        String?
+  bytes           Int?
+  // §176 reproducibility metadata
+  meta            Json         @default("{}")
+  error           String?
+  downloadTokenHash String?    @unique
+  downloadExpiresAt DateTime?
+  createdAt       DateTime     @default(now())
+  finishedAt      DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+}
+
+/// Generic queue record backing BullMQ/in-process jobs (§72-§73).
+enum JobRunType {
+  RESUME_IMPORT
+  RESUME_EXPORT
+  RESUME_ANALYZE
+  AI_GENERATE
+  COVER_LETTER_GENERATE
+  ACCOUNT_DATA_EXPORT
+}
+
+enum JobRunStatus {
+  QUEUED
+  ACTIVE
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+  CANCELLED
+}
+
+model JobRun {
+  id        String       @id @default(cuid())
+  userId    String
+  type      JobRunType
+  status    JobRunStatus @default(QUEUED)
+  attempts  Int          @default(0)
+  maxAttempts Int        @default(3)
+  payload   Json
+  result    Json?
+  error     String?
+  lastError String?
+  startedAt DateTime?
+  finishedAt DateTime?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, type])
+}
+
+// ─────────────────────────────── AI + telemetry (§96-§101) ─────────────────
+
+model AIGeneration {
+  id            String   @id @default(cuid())
+  userId        String
+  action        String // generateResume | improveBullet | analyzeResume | …
+  status        AiStatus @default(SUCCESS)
+  provider      String
+  model         String
+  promptKey     String
+  promptVersion Int
+  inputHash     String?
+  tokensIn      Int?
+  tokensOut     Int?
+  durationMs    Int?
+  costEstimate  Decimal? @db.Decimal(10, 6)
+  error         String?
+  output        Json?
+  fallbackUsed  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
+
+enum AiStatus {
+  SUCCESS
+  FAILED
+  INVALID_OUTPUT
+  BLOCKED_QUOTA
+  RATE_LIMITED
+}
+
+model UsageEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  event     String // resume_created | resume_exported | ats_completed | …
+  props     Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([event, createdAt])
+  @@index([userId, createdAt])
+}
+
+// ──────────────────────────── Billing / entitlements (§89-§93) ─────────────
+
+model Plan {
+  id        String   @id
+  name      String
+  tagline   String?
+  priceCentsMonthly Int @default(0)
+  priceCentsAnnual  Int @default(0)
+  limits    Json     @default("{}")
+  features  Json     @default("[]")
+  highlighted Boolean @default(false)
+  createdAt DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  planId             String
+  provider           String   @default("none") // billing provider abstraction (§90)
+  providerCustomerId String?
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd   DateTime?
+  trialEndsAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIALING
+  PAST_DUE
+  CANCELLED
+  INCOMPLETE
+}
+
+model Entitlement {
+  id        String   @id @default(cuid())
+  userId    String
+  key       String // e.g. resume.export.docx
+  value     Json     @default("true")
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+}
+
+// ─────────────────────────────── Ops (§97/§102/§149) ────────────────────────
+
+model FeatureFlag {
+  key         String   @id
+  description String?
+  enabled     Boolean  @default(false)
+  rolloutPct  Int      @default(100)
+  variant     Json?
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String // login | register | password_reset | delete_account | …
+  ip        String?
+  userAgent String?
+  meta      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}
