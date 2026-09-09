@@ -8,7 +8,11 @@ import {
   type SectionItem,
   type TemplateConfig,
 } from "@/lib/resume/document";
-import { getTemplate } from "@/templates/catalog";
+import {
+  getTemplate,
+  resolveConfig,
+  sparseConfig as sparseTemplateConfig,
+} from "@/templates/catalog";
 
 /**
  * Mapping between the normalized database (career library + composition
@@ -202,7 +206,7 @@ export async function loadResumeDocument(userId: string, resumeId: string): Prom
       paperSize: resume.paperSize,
       templateId: resume.templateId,
       templateVersion: 1,
-      config: resume.templateConfig as object,
+      config: resolveConfig(resume.templateId, resume.templateConfig as object),
     },
     contact: {
       fullName: profile?.displayName ?? "Your Name",
@@ -444,17 +448,7 @@ export interface SaveResult {
  * only the template identity changes).
  */
 function sparseConfig(config: TemplateConfig, templateId: string): Record<string, unknown> {
-  let defaults: Record<string, unknown>;
-  try {
-    defaults = { ...getTemplate(templateId).defaultConfig } as unknown as Record<string, unknown>;
-  } catch {
-    defaults = {};
-  }
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(config as Record<string, unknown>)) {
-    if (JSON.stringify(defaults[k]) !== JSON.stringify(v)) out[k] = v;
-  }
-  return out;
+  return sparseTemplateConfig(templateId, config) as Record<string, unknown>;
 }
 
 function canonicalHash(doc: ResumeDocument): string {

@@ -6,7 +6,7 @@ import {
   saveResumeDocument,
   type SaveOptions,
 } from "@/features/resume/repository";
-import { getTemplate, TEMPLATES } from "@/templates/catalog";
+import { getTemplate, rebaseConfig, TEMPLATES } from "@/templates/catalog";
 import { rowToItem, type LibraryKindKey, type LibraryRow } from "@/features/profile/entry-map";
 
 /**
@@ -55,11 +55,14 @@ async function getProfileId(userId: string): Promise<string> {
 export async function createResume(
   ctx: Ctx,
   name: string,
+  templateId?: string,
 ): Promise<{ resumeId: string; doc: ResumeDocument }> {
   const careerProfileId = await getProfileId(ctx.userId);
   const doc = emptyResumeDocument(name);
+  const tid = TEMPLATES.some((t) => t.id === templateId) ? templateId! : "ats-classic";
+  doc.meta.templateId = tid;
   const resume = await db.resume.create({
-    data: { careerProfileId, name, templateId: "ats-classic", templateConfig: {} },
+    data: { careerProfileId, name, templateId: tid, templateConfig: {} },
   });
   doc.meta.resumeId = resume.id;
   doc.meta.name = name;
@@ -189,6 +192,11 @@ export async function switchTemplate(
   if (!valid) throw new Error("Unknown template");
   const loaded = await loadResumeDocument(ctx.userId, resumeId);
   // content untouched; sparse config re-based onto new template defaults (§107)
+  loaded.doc.meta.config = rebaseConfig(
+    loaded.doc.meta.config,
+    loaded.doc.meta.templateId,
+    templateId,
+  );
   loaded.doc.meta.templateId = templateId;
   const def = getTemplate(templateId);
   await saveResumeDocument(ctx.userId, resumeId, loaded.doc, {

@@ -1,4 +1,9 @@
-import type { ResumeDocument, SectionKind, TemplateConfig } from "@/lib/resume/document";
+import {
+  DEFAULT_TEMPLATE_CONFIG,
+  templateConfigSchema,
+  type SectionKind,
+  type TemplateConfig,
+} from "@/lib/resume/document";
 
 /**
  * Template catalog (§29-§33). Every template consumes the common ResumeDocument
@@ -365,12 +370,61 @@ export function effectiveLayout(
   config: TemplateConfig,
 ): { layout: TemplateLayoutSpec; headingCase: "uppercase" | "title-case" } {
   const layout: TemplateLayoutSpec = { ...def.layout };
-  if (config.atsSafe || def.ats === "excellent") {
+  // User-facing design knobs override the template's baseline presentation.
+  if (config.sectionDivider) layout.headingRule = config.sectionDivider;
+  if (config.headerStyle) layout.header = config.headerStyle;
+  if (config.dateAlign === "below") layout.datePlacement = "below";
+  else if (config.dateAlign === "right") layout.datePlacement = "right";
+  if (config.atsSafe) {
     layout.columns = 1;
     layout.rail = [];
-    if (config.atsSafe) layout.header = def.layout.header === "banner" ? "left" : def.layout.header;
+    if (layout.header === "banner") layout.header = "left";
   }
-  return { layout, headingCase: config.uppercaseHeadings ? "uppercase" : "title-case" };
+  const headingCase =
+    config.uppercaseHeadings === undefined
+      ? layout.headingCase
+      : config.uppercaseHeadings
+        ? "uppercase"
+        : "title-case";
+  layout.headingCase = headingCase;
+  return { layout, headingCase };
+}
+
+/**
+ * Config a resume should carry for a template: the schema defaults, then the
+ * template's own look, then whatever the user explicitly changed.
+ */
+export function resolveConfig(
+  templateId: string,
+  stored: Partial<TemplateConfig> | null | undefined,
+): TemplateConfig {
+  const def = getTemplate(templateId);
+  return templateConfigSchema.parse({
+    ...DEFAULT_TEMPLATE_CONFIG,
+    ...def.defaultConfig,
+    ...(stored ?? {}),
+  });
+}
+
+/** Keys the user changed away from the template's baseline (what gets persisted). */
+export function sparseConfig(
+  templateId: string,
+  config: Partial<TemplateConfig>,
+): Partial<TemplateConfig> {
+  const base = { ...DEFAULT_TEMPLATE_CONFIG, ...getTemplate(templateId).defaultConfig } as Record<
+    string,
+    unknown
+  >;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(config)) {
+    if (JSON.stringify(base[k]) !== JSON.stringify(v)) out[k] = v;
+  }
+  return out as Partial<TemplateConfig>;
+}
+
+/** Move a config from one template to another, keeping only the user's explicit overrides. */
+export function rebaseConfig(config: TemplateConfig, fromId: string, toId: string): TemplateConfig {
+  return resolveConfig(toId, sparseConfig(fromId, config));
 }
 
 export function validateTemplateCatalog(defs: TemplateDefinition[]): string[] {

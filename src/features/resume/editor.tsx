@@ -57,7 +57,7 @@ import {
 } from "@/features/resume/actions";
 import { saveProfileAction } from "@/features/profile/actions";
 import { computeStats } from "@/lib/resume/stats";
-import { TEMPLATES, getTemplate } from "@/templates/catalog";
+import { TEMPLATES, getTemplate, rebaseConfig } from "@/templates/catalog";
 import { Button } from "@/components/ui/button";
 import { Badge, Card, Field, Input, Skeleton, Spinner, Textarea } from "@/components/ui/primitives";
 import {
@@ -85,6 +85,8 @@ import {
 import { toast } from "@/components/ui/toast";
 import { cn, timeAgo } from "@/lib/utils";
 import { ResumePreview } from "@/features/resume/preview";
+import { DesignPanel } from "@/features/resume/design-panel";
+import { TemplateThumb } from "@/features/resume/template-thumb";
 import { ItemCard, AddItemButton } from "@/features/resume/item-form";
 import { profileToContact, type ContactForm } from "@/features/resume/contact-form";
 
@@ -261,6 +263,22 @@ export function ResumeEditor({
   }, [resumeId]);
   const [renaming, setRenaming] = React.useState(false);
   const [nameDraft, setNameDraft] = React.useState(doc.meta.name);
+  const [zoom, setZoom] = React.useState(0.85);
+  const [designOpen, setDesignOpen] = React.useState(true);
+
+  async function switchTemplate(tid: string) {
+    // optimistic: re-lay instantly, persist in the background
+    edit((d) => ({
+      ...d,
+      meta: {
+        ...d.meta,
+        templateId: tid,
+        config: rebaseConfig(d.meta.config, d.meta.templateId, tid),
+      },
+    }));
+    const res = await switchTemplateAction({ resumeId, templateId: tid });
+    if (!res.ok) toast.error(res.error);
+  }
 
   function renameCommit() {
     setRenaming(false);
@@ -421,10 +439,22 @@ export function ResumeEditor({
           <PreviewToolbar
             doc={doc}
             stats={stats}
-            onChangeConfig={(patch) => edit((d) => setConfig(d, patch))}
-            onTemplate={() => setDialog("template")}
+            zoom={zoom}
+            onZoom={setZoom}
+            designOpen={designOpen}
+            onToggleDesign={() => setDesignOpen((v) => !v)}
           />
-          <ResumePreview doc={doc} zoom={0.9} />
+          <div className="flex min-h-0 flex-1">
+            <ResumePreview doc={doc} zoom={zoom} />
+            {designOpen ? (
+              <DesignPanel
+                doc={doc}
+                onChangeConfig={(patch) => edit((d) => setConfig(d, patch))}
+                onTemplate={(tid) => void switchTemplate(tid)}
+                onPaper={(p) => edit((d) => ({ ...d, meta: { ...d.meta, paperSize: p } }))}
+              />
+            ) : null}
+          </div>
         </section>
 
         {/* mobile: preview as dialog-lite overlay */}
@@ -436,13 +466,9 @@ export function ResumeEditor({
         open={dialog === "template"}
         onClose={() => setDialog(null)}
         current={doc.meta.templateId}
-        onPick={async (tid) => {
-          const res = await switchTemplateAction({ resumeId, templateId: tid });
-          if (res.ok) {
-            edit((d) => ({ ...d, meta: { ...d.meta, templateId: tid } }));
-            toast.success("Template switched — content untouched.");
-            router.refresh();
-          } else toast.error(res.error);
+        doc={doc}
+        onPick={(tid) => {
+          void switchTemplate(tid);
           setDialog(null);
         }}
       />
@@ -911,18 +937,23 @@ function LibraryPickerDialog({
 function PreviewToolbar({
   doc,
   stats,
-  onChangeConfig,
-  onTemplate,
+  zoom,
+  onZoom,
+  designOpen,
+  onToggleDesign,
 }: {
   doc: ResumeDocument;
   stats: ReturnType<typeof computeStats>;
-  onChangeConfig: (p: Partial<TemplateConfig>) => void;
-  onTemplate: () => void;
+  zoom: number;
+  onZoom: (z: number) => void;
+  designOpen: boolean;
+  onToggleDesign: () => void;
 }) {
-  const cfg = doc.meta.config;
+  const template = getTemplate(doc.meta.templateId);
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b bg-card px-3 py-1.5 text-xs">
-      <span className="font-medium">{stats.score}%</span>
+    <div className="flex items-center gap-2 border-b bg-card px-3 py-1.5 text-xs">
+      <span className="font-semibold">{template.name}</span>
+      <Badge variant="outline">ATS {template.ats}</Badge>
       <Tooltip>
         <TooltipTrigger asChild>
           <span
@@ -935,64 +966,35 @@ function PreviewToolbar({
                   : "bg-red-500/15 text-red-600 dark:text-red-400",
             )}
           >
-            content check
+            {stats.score}% content
           </span>
         </TooltipTrigger>
         <TooltipContent>
-          Local checklist — verbs, numbers, completeness. Not an ATS guarantee; real systems score
-          differently.
+          Local checklist — verbs, numbers, completeness. Not an ATS guarantee.
         </TooltipContent>
       </Tooltip>
-      {stats.onePageRisk !== "low" ? (
-        <Badge variant={stats.onePageRisk === "high" ? "destructive" : "warning"}>
-          ~{stats.estimatedLines} lines —{" "}
-          {stats.onePageRisk === "high" ? "over one page" : "near one page"}
-        </Badge>
-      ) : (
-        <Badge variant="success">≈ one page</Badge>
-      )}
       <div className="ml-auto flex items-center gap-1">
-        <label className="flex items-center gap-1">
-          <span className="text-muted-foreground">Font</span>
-          <select
-            className="h-6 rounded border border-input bg-card px-1 text-[11px]"
-            value={cfg.baseFont}
-            onChange={(e) => onChangeConfig({ baseFont: e.target.value as never })}
-          >
-            <option value="inter">Inter</option>
-            <option value="lora">Lora</option>
-            <option value="mono">Mono</option>
-          </select>
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-muted-foreground">Size</span>
-          <input
-            type="range"
-            min={8}
-            max={13}
-            step={0.5}
-            value={cfg.fontSize}
-            onChange={(e) => onChangeConfig({ fontSize: Number(e.target.value) })}
-            className="w-16 accent-[var(--primary)]"
-            aria-label="Base font size (pt)"
-          />
-          <span className="w-8 tabular-nums">{cfg.fontSize}pt</span>
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-muted-foreground">Margins</span>
-          <input
-            type="range"
-            min={0.6}
-            max={1.4}
-            step={0.05}
-            value={cfg.marginScale}
-            onChange={(e) => onChangeConfig({ marginScale: Number(e.target.value) })}
-            className="w-16 accent-[var(--primary)]"
-            aria-label="Margin scale"
-          />
-        </label>
-        <Button size="sm" variant="ghost" onClick={onTemplate}>
-          More styles
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Zoom out"
+          onClick={() => onZoom(Math.max(0.5, +(zoom - 0.1).toFixed(2)))}
+        >
+          −
+        </Button>
+        <span className="w-9 text-center tabular-nums text-muted-foreground">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Zoom in"
+          onClick={() => onZoom(Math.min(1.5, +(zoom + 0.1).toFixed(2)))}
+        >
+          +
+        </Button>
+        <Button size="sm" variant={designOpen ? "secondary" : "ghost"} onClick={onToggleDesign}>
+          <Palette /> Design
         </Button>
       </div>
     </div>
@@ -1005,48 +1007,42 @@ function TemplateDialog({
   open,
   onClose,
   current,
+  doc,
   onPick,
 }: {
   open: boolean;
   onClose: () => void;
   current: string;
+  doc: ResumeDocument;
   onPick: (id: string) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Templates</DialogTitle>
+          <DialogTitle>Choose a template</DialogTitle>
           <DialogDescription>
-            Switching re-lays your content instantly — text, bullets and links are preserved
-            exactly, and the switch itself is versioned.
+            Previews use your actual content. Switching never changes your text.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid max-h-[70vh] grid-cols-2 gap-3 overflow-y-auto p-1 sm:grid-cols-3 lg:grid-cols-4">
           {TEMPLATES.map((t) => (
             <button
               key={t.id}
               onClick={() => onPick(t.id)}
               className={cn(
-                "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent/50",
-                t.id === current && "border-primary ring-1 ring-primary/40",
+                "flex flex-col gap-2 rounded-lg border p-2 text-left transition-all hover:border-primary/60 hover:shadow-sm",
+                t.id === current && "border-primary ring-2 ring-primary/30",
               )}
             >
+              <div className="overflow-hidden rounded border bg-white">
+                <TemplateThumb doc={doc} templateId={t.id} width={180} />
+              </div>
               <span className="flex items-center gap-2 text-sm font-semibold">
                 {t.name}
                 {t.id === current ? <Badge variant="success">current</Badge> : null}
               </span>
-              <span className="text-xs text-muted-foreground">{t.description}</span>
-              <span className="mt-1 flex gap-1">
-                <Badge variant="outline">{t.tags[0] ?? t.tags.join(" · ")}</Badge>
-                <Badge
-                  variant={
-                    t.ats === "excellent" ? "success" : t.ats === "good" ? "secondary" : "warning"
-                  }
-                >
-                  ATS {t.ats}
-                </Badge>
-              </span>
+              <span className="line-clamp-2 text-xs text-muted-foreground">{t.description}</span>
             </button>
           ))}
         </div>

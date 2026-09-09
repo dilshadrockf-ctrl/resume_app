@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
 import {
@@ -15,7 +15,7 @@ import { Field, Input, Spinner } from "@/components/ui/primitives";
 import { createResumeAction } from "@/features/resume/actions";
 import { toast } from "@/components/ui/toast";
 
-export function NewResumeButton({
+function NewResumeButtonInner({
   label = "New resume",
   variant = "default",
   size = "default",
@@ -25,14 +25,24 @@ export function NewResumeButton({
   size?: ButtonProps["size"];
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
+  const templateId = params.get("template") ?? undefined;
+
+  // `/resumes?new=1` (sidebar shortcut, templates gallery) opens the dialog directly.
+  React.useEffect(() => {
+    if (params.get("new") === "1") {
+      setName(defaultName());
+      setOpen(true);
+    }
+  }, [params]);
 
   async function create() {
     if (!name.trim()) return;
     setBusy(true);
-    const res = await createResumeAction({ name: name.trim() });
+    const res = await createResumeAction({ name: name.trim(), templateId });
     setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
@@ -99,4 +109,22 @@ export function NewResumeButton({
 function defaultName() {
   const now = new Date();
   return `Resume — ${now.toLocaleDateString(undefined, { month: "short", year: "numeric" })}`;
+}
+
+export function NewResumeButton(props: {
+  label?: string;
+  variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
+}) {
+  return (
+    <React.Suspense
+      fallback={
+        <Button variant={props.variant} size={props.size} disabled>
+          <Plus className="size-4" /> {props.label ?? "New resume"}
+        </Button>
+      }
+    >
+      <NewResumeButtonInner {...props} />
+    </React.Suspense>
+  );
 }
