@@ -48,12 +48,7 @@ export function ResumePreview({
     // async chunk so typing never blocks the frame
     const t = setTimeout(() => {
       try {
-        const def = getTemplate(doc.meta.templateId);
-        const merged = {
-          ...def.defaultConfig,
-          ...doc.meta.config,
-        } as ResumeDocument["meta"]["config"];
-        const render = buildRenderDoc(doc, merged);
+        const render = buildRenderDoc(doc);
         const measurer = createDomMeasurer(96 / 72);
         const placed = typesetDoc(render, measurer);
         const out = placedDocToHtml(placed, { pxPerPt: (96 / 72) * zoom });

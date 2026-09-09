@@ -254,12 +254,13 @@ export const templateConfigSchema = z.object({
   marginScale: z.number().min(0.6).max(1.4).default(1),
   density: z.enum(["comfortable", "compact", "dense"]).default("comfortable"),
   fontScale: z.number().min(0.75).max(1.25).default(1),
-  uppercaseHeadings: z.boolean().default(true),
+  // Presentation knobs: undefined = "let the template decide".
+  uppercaseHeadings: z.boolean().optional(),
   headingAlign: z.enum(["left", "center"]).default("left"),
-  dateAlign: z.enum(["right", "below", "inline"]).default("right"),
-  sectionDivider: z.enum(["rule", "bar", "underline", "space"]).default("rule"),
-  bulletStyle: z.enum(["dash", "dot", "square", "none"]).default("dash"),
-  headerStyle: z.enum(["left", "centered", "stacked", "banner"]).default("left"),
+  dateAlign: z.enum(["right", "below", "inline"]).optional(),
+  sectionDivider: z.enum(["rule", "bar", "underline", "space"]).optional(),
+  bulletStyle: z.enum(["dash", "dot", "square", "none"]).default("dot"),
+  headerStyle: z.enum(["left", "centered", "stacked", "banner"]).optional(),
   skillFormat: z.enum(["inline", "grouped-inline", "grouped-lines"]).default("grouped-inline"),
   showPhoto: z.boolean().default(false),
   atsSafe: z.boolean().default(false), // §32 presentation-only safety mode

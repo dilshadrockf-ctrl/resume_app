@@ -6,37 +6,28 @@ import { Badge, Card, Spinner } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/toast";
 import { switchTemplateAction } from "@/features/resume/actions";
+import { TemplateThumb } from "@/features/resume/template-thumb";
+import type { ResumeDocument } from "@/lib/resume/document";
 
 export function TemplateGalleryCard({
   template,
-  html,
-  pages,
+  doc,
   resumeId,
   current,
 }: {
   template: { id: string; name: string; description: string; ats: string; tags: string[] };
-  html: string;
-  pages: number;
-  resumeId: string;
+  doc: ResumeDocument | null;
+  resumeId: string | null;
   current: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState(false);
   return (
     <Card className="overflow-hidden">
-      <div className="relative h-[340px] overflow-hidden bg-muted/40">
-        {html ? (
-          <div
-            className="pointer-events-none absolute left-1/2 top-3 origin-top -translate-x-1/2"
-            style={{ pointerEvents: "none" }}
-          >
-            <div dangerouslySetInnerHTML={{ __html: html }} />
-          </div>
-        ) : (
-          <div className="grid h-full place-items-center text-xs text-muted-foreground">
-            preview when you add content
-          </div>
-        )}
+      <div className="relative flex h-[340px] justify-center overflow-hidden bg-muted/40 pt-4">
+        <div className="pointer-events-none overflow-hidden rounded-t border shadow-md">
+          <TemplateThumb doc={doc} templateId={template.id} width={230} />
+        </div>
         {current ? (
           <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">
             <Check className="size-3" /> in use
@@ -57,11 +48,6 @@ export function TemplateGalleryCard({
           >
             ATS {template.ats}
           </Badge>
-          {pages > 1 ? (
-            <Badge variant="warning" className="ml-auto">
-              {pages} pages
-            </Badge>
-          ) : null}
         </div>
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{template.description}</p>
         <div className="mt-3 flex flex-wrap gap-1">
@@ -71,7 +57,15 @@ export function TemplateGalleryCard({
             </Badge>
           ))}
         </div>
-        {!current ? (
+        {!resumeId ? (
+          <Button
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => router.push(`/resumes?new=1&template=${template.id}`)}
+          >
+            Create resume with this template
+          </Button>
+        ) : !current ? (
           <Button
             size="sm"
             className="mt-3 w-full"
@@ -82,7 +76,7 @@ export function TemplateGalleryCard({
               setBusy(false);
               if (res.ok) {
                 toast.success(`Switched to ${template.name} — content untouched.`);
-                router.refresh();
+                router.push(`/resumes/${resumeId}`);
               } else toast.error(res.error);
             }}
           >
@@ -93,7 +87,7 @@ export function TemplateGalleryCard({
             size="sm"
             variant="outline"
             className="mt-3 w-full"
-            onClick={() => router.push(`/resumes/${resumeId}`)}
+            onClick={() => router.push(`/resumes/${resumeId!}`)}
           >
             Open editor
           </Button>

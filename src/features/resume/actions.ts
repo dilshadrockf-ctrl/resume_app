@@ -29,13 +29,17 @@ export type SavePayload = {
 
 export async function createResumeAction(raw: {
   name: string;
+  templateId?: string;
 }): Promise<ActionResult<{ resumeId: string }>> {
   return withValidation(
-    z.object({ name: z.string().trim().min(1).max(120) }),
+    z.object({
+      name: z.string().trim().min(1).max(120),
+      templateId: z.string().max(64).optional(),
+    }),
     raw,
     async (input) => {
       const ctx = await requireCtx();
-      const { resumeId } = await service.createResume(ctx, input.name);
+      const { resumeId } = await service.createResume(ctx, input.name, input.templateId);
       await audit(ctx, "resume_created", { resumeId });
       revalidatePath("/resumes");
       revalidatePath("/dashboard");

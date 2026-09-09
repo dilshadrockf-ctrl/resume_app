@@ -5,10 +5,11 @@ import type {
   SectionKind,
   TemplateConfig,
 } from "@/lib/resume/document";
-import { cleanDate, formatRange, monthsBetween } from "@/lib/resume/dates";
+import { cleanDate, formatPartialDate, formatRange, monthsBetween } from "@/lib/resume/dates";
 import {
   effectiveLayout,
   getTemplate,
+  resolveConfig,
   type TemplateDefinition,
   type TemplateLayoutSpec,
 } from "@/templates/catalog";
@@ -135,7 +136,7 @@ function contactRuns(contact: Contact, style: { size: (pt: number) => number }):
   const runs: Run[] = [];
   const push = (text?: string, link?: string) => {
     if (!text) return;
-    if (runs.length) runs.push({ text: "  •  " });
+    if (runs.length) runs.push({ text: "   |   ", color: "#9ca3af" });
     runs.push({ text, link });
   };
   push(contact.email, contact.email ? `mailto:${contact.email}` : undefined);
@@ -346,7 +347,7 @@ function runsFor(
 }
 
 function formatPartial(d: string): string {
-  return d;
+  return formatPartialDate(cleanDate(d)) || d;
 }
 
 function typeLabel(t: string): string {
@@ -363,21 +364,21 @@ export function buildRenderDoc(
   overrides?: Partial<TemplateConfig>,
 ): RenderDoc {
   const def = getTemplate(doc.meta.templateId);
-  const config = { ...def.defaultConfig, ...doc.meta.config, ...overrides } as TemplateConfig;
+  const config = resolveConfig(def.id, { ...doc.meta.config, ...overrides });
   const s = style(doc, def, config);
   const { layout, headingCase } = s;
-  const accent = config.atsSafe || def.ats === "excellent" ? "#111827" : config.accentColor;
+  const accent = config.atsSafe ? "#111827" : config.accentColor;
 
   const contactList = contactRuns(doc.contact, s).map(
-    (r) => ({ ...r, size: s.size(config.fontSize * 0.92) }) as Run,
+    (r) => ({ ...r, size: s.size(config.fontSize * 0.92), color: "#4b5563" }) as Run,
   );
   const headline = doc.contact.headline?.trim()
     ? [
         {
           text: doc.contact.headline,
-          size: s.size(config.fontSize * 1.18),
-          color: config.atsSafe || def.ats === "excellent" ? "#374151" : accent,
-          bold: true,
+          size: s.size(config.fontSize * 1.2),
+          color: config.atsSafe ? "#374151" : accent,
+          bold: false,
         } as Run,
       ]
     : null;
@@ -405,7 +406,21 @@ export function buildRenderDoc(
     const visibleItems = section.items.filter((i) => i.visible);
     if (visibleItems.length === 0 && section.kind !== "SUMMARY") continue;
     const blocks: Block[] = [];
-    if (section.kind === "SKILLS") {
+    if (section.kind === "LANGUAGES") {
+      const langs = visibleItems.filter(
+        (i): i is Extract<SectionItem, { kind: "language" }> => i.kind === "language",
+      );
+      blocks.push({
+        type: "paragraph",
+        runs: langs.flatMap((l, i) => {
+          const runs: Run[] = [];
+          if (i) runs.push({ text: "   •   " });
+          runs.push({ text: l.name, bold: true });
+          if (l.proficiency) runs.push({ text: ` (${l.proficiency})` });
+          return runs;
+        }),
+      });
+    } else if (section.kind === "SKILLS") {
       const skills = visibleItems.filter(
         (i): i is Extract<SectionItem, { kind: "skill" }> => i.kind === "skill",
       );

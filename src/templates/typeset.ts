@@ -124,6 +124,8 @@ export function wrapRuns(
   let cur: Piece[] = [];
   let curWidth = 0;
   const flush = () => {
+    // drop trailing whitespace at a line break
+    while (cur.length && /^\s+$/.test(cur[cur.length - 1]!.text)) cur.pop();
     if (!cur.length) return;
     const runsOut: PlacedRun[] = [];
     let width = 0;
@@ -149,17 +151,14 @@ export function wrapRuns(
     curWidth = 0;
   };
   for (const piece of pieces) {
+    const isSpace = /^\s+$/.test(piece.text);
+    // never start a line with whitespace
+    if (isSpace && cur.length === 0) continue;
     const w = measurer.width(piece.text, piece.meta.fontKey, piece.meta.size);
-    const trimmedOnWrap = curWidth > 0 && /^\s+$/.test(piece.text);
-    if (curWidth + w > maxWidth && curWidth > 0 && piece.hard) {
+    if (piece.hard && curWidth + w > maxWidth && cur.length > 0) {
       flush();
-      if (/^\s+$/.test(piece.text)) continue;
       cur.push({ ...piece, width: w });
       curWidth = w;
-      continue;
-    }
-    if (trimmedOnWrap && cur.length) {
-      // trailing space at a line break: skip it
       continue;
     }
     cur.push({ ...piece, width: w });
@@ -243,46 +242,42 @@ function planBullets(
   items: Run[][],
   width: number,
 ): BlockPlan {
-  const indent = 11;
-  const textWidth = width - indent;
   const marker = bulletChar(o);
+  const indent = marker ? round2(o.fontSize * 1.1) : 0;
+  const textWidth = width - indent;
   const out: PlacedItem[] = [];
   let y = 0;
+  const gap = round2(o.lineHeight * 0.12);
   for (const itemRuns of items) {
-    const runs: Run[] = marker ? [{ text: `${marker}` }, ...itemRuns] : [...itemRuns];
-    const lines = wrapRuns(measurer, o, runs, textWidth);
-    lines.forEach((line, idx) => {
+    const lines = wrapRuns(measurer, o, itemRuns, textWidth);
+    if (marker) {
       out.push({
         kind: "text",
-        x: idx === 0 ? 0 : indent,
-        y: y + idx * o.lineHeight,
-        width: idx === 0 ? width : textWidth,
+        x: 0,
+        y,
+        width: indent,
         lineHeight: o.lineHeight,
         align: "left",
-        lines: [idx === 0 ? withFirstLineMarker(line, marker, o) : line],
+        lines: [
+          {
+            runs: [runToPlaced({ text: marker, color: o.accent }, o)],
+            width: indent,
+          },
+        ],
       });
+    }
+    out.push({
+      kind: "text",
+      x: indent,
+      y,
+      width: textWidth,
+      lineHeight: o.lineHeight,
+      align: "left",
+      lines,
     });
-    y += lines.length * o.lineHeight + 1;
+    y += lines.length * o.lineHeight + gap;
   }
-  return { items: out, height: y + 2 };
-}
-
-function withFirstLineMarker(line: PlacedLine, marker: string, o: TypesetContext): PlacedLine {
-  if (!marker) return line;
-  // Render the marker in a muted color; keep rest of the line untouched.
-  const runs = [...line.runs];
-  if (runs[0]?.text.startsWith(marker)) {
-    runs[0] = { ...runs[0], text: runs[0].text.slice(marker.length), color: o.accent };
-    runs.unshift({
-      text: marker,
-      fontKey: runs[0].fontKey,
-      size: runs[0].size,
-      bold: false,
-      italic: false,
-      color: o.accent,
-    });
-  }
-  return { runs, width: line.width };
+  return { items: out, height: y + 1 };
 }
 
 function planEntry(
@@ -316,13 +311,7 @@ function planEntry(
   if (entry.right) {
     const dLines: PlacedLine[] = [
       {
-        runs: [
-          runToPlaced(
-            { text: entry.right, size: o.fontSize * 0.92, color: "#6b7280" },
-            o,
-            render.baseFont === "lora" ? "inter" : undefined,
-          ),
-        ],
+        runs: [runToPlaced({ text: entry.right, size: o.fontSize * 0.92, color: "#6b7280" }, o)],
         width: dateWidth || width,
       },
     ];
@@ -371,7 +360,7 @@ function planEntry(
   for (const para of entry.paragraphs) {
     const lines = wrapRuns(measurer, o, para, width);
     items.push({ kind: "text", x: 0, y, width, lineHeight: o.lineHeight, align: "left", lines });
-    y += lines.length * o.lineHeight + 1.5;
+    y += lines.length * o.lineHeight + 1;
   }
 
   if (entry.bullets.length) {
@@ -399,7 +388,7 @@ function planEntry(
     y += lines.length * o.lineHeight * 0.9 + 1;
   }
 
-  return { items, height: y + 4.2 };
+  return { items, height: y + 2 };
 }
 
 function measureDate(measurer: Measurer, o: TypesetContext, text: string): number {
@@ -426,45 +415,49 @@ function planSection(
     { text: sec.title, bold: true, size: headingSize, color: render.accent },
   ];
   const titleLines = wrapRuns(measurer, o, titleRuns, width);
-  const titleH = titleLines.length * headingSize * 1.28;
+  const titleLH = headingSize * 1.25;
+  const titleH = titleLines.length * titleLH;
+  const titleW = titleLines[0]?.width ?? 0;
+  const titleX = render.headingAlign === "center" ? Math.max(0, (width - titleW) / 2) : 0;
 
-  let rule: RectBox | null = null;
+  const rects: RectBox[] = [];
   let extra = 0;
+  const gapAfterTitle = 3;
   if (render.layout.headingRule === "rule") {
-    rule = {
+    rects.push({
       kind: "rect",
       x: 0,
-      y: titleH + 1.2,
+      y: titleH + gapAfterTitle,
       width,
-      height: 0.7,
+      height: 0.6,
       color: "#9ca3af",
       role: "rule",
-    };
-    extra = 6.5;
+    });
+    extra = gapAfterTitle + 0.6 + 6;
   } else if (render.layout.headingRule === "bar") {
-    rule = {
+    rects.push({
       kind: "rect",
       x: 0,
-      y: titleH + 2.2,
+      y: titleH + gapAfterTitle,
       width,
-      height: 1.7,
+      height: 1.5,
       color: render.accent,
-      role: "rule",
-    };
-    extra = 7.5;
+      role: "bar",
+    });
+    extra = gapAfterTitle + 1.5 + 6;
   } else if (render.layout.headingRule === "underline") {
-    rule = {
+    rects.push({
       kind: "rect",
-      x: 0,
-      y: titleH + 1,
-      width: Math.min(width, 110),
-      height: 1.1,
+      x: titleX,
+      y: titleH + 2,
+      width: Math.max(28, Math.min(width, titleW)),
+      height: 1.4,
       color: render.accent,
-      role: "rule",
-    };
-    extra = 6.5;
+      role: "bar",
+    });
+    extra = 2 + 1.4 + 6;
   } else {
-    extra = 3;
+    extra = 4;
   }
 
   const titleBox: TextBox = {
@@ -472,32 +465,44 @@ function planSection(
     x: 0,
     y: 0,
     width,
-    lineHeight: headingSize * 1.28,
+    lineHeight: titleLH,
     align: render.headingAlign,
     lines: titleLines,
   };
 
   const units: SectionUnit[] = [];
   const blockPlans = sec.blocks.map((b) => planBlock(render, o, measurer, b, width));
+  const gapBetweenBlocks = round2(o.lineHeight * 0.35);
+  const gapAfterSection = round2(o.lineHeight * 0.55);
   if (blockPlans.length === 0) {
     units.push({
-      items: [titleBox, ...(rule ? [rule] : [])],
-      height: titleH + extra,
+      items: [titleBox, ...rects],
+      height: titleH + extra + gapAfterSection,
       keepWithNext: false,
     });
     return units;
   }
+  // Heading always travels with the first block so it can't be orphaned at a page bottom.
   units.push({
     items: [
       titleBox,
-      ...(rule ? [rule] : []),
+      ...rects,
       ...blockPlans[0]!.items.map((it) => ({ ...it, y: it.y + titleH + extra })),
     ],
-    height: titleH + extra + blockPlans[0]!.height,
+    height:
+      titleH +
+      extra +
+      blockPlans[0]!.height +
+      (blockPlans.length === 1 ? gapAfterSection : gapBetweenBlocks),
     keepWithNext: false,
   });
   for (let i = 1; i < blockPlans.length; i++) {
-    units.push({ items: blockPlans[i]!.items, height: blockPlans[i]!.height, keepWithNext: false });
+    const last = i === blockPlans.length - 1;
+    units.push({
+      items: blockPlans[i]!.items,
+      height: blockPlans[i]!.height + (last ? gapAfterSection : gapBetweenBlocks),
+      keepWithNext: false,
+    });
   }
   return units;
 }
@@ -516,7 +521,7 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
   if (render.header) {
     const h = render.header;
     const isBanner = h.variant === "banner";
-    const nameSize = round2(o.fontSize * (isBanner ? 2.0 : h.variant === "centered" ? 1.9 : 1.85));
+    const nameSize = round2(o.fontSize * (isBanner ? 2.3 : h.variant === "centered" ? 2.2 : 2.0));
     const nameLines = wrapRuns(
       measurer,
       { ...o, textColor: isBanner ? "#ffffff" : o.textColor },
@@ -534,7 +539,7 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
       align: h.align,
       lines: nameLines,
     });
-    hy += nameLines.length * nameSize * 1.16;
+    hy += nameLines.length * nameSize * 1.16 + 2;
     if (h.headlineRuns) {
       const hl = wrapRuns(measurer, o, h.headlineRuns, width);
       headerItems.push({
@@ -542,11 +547,11 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
         x: 0,
         y: hy + 1,
         width,
-        lineHeight: o.lineHeight * 1.05,
+        lineHeight: o.lineHeight * 1.1,
         align: h.align,
         lines: hl,
       });
-      hy += hl.length * o.lineHeight * 1.05 + 3;
+      hy += hl.length * o.lineHeight * 1.1 + 4;
     }
     if (h.contactRuns.length) {
       const cl = wrapRuns(measurer, o, h.contactRuns, width);
@@ -555,48 +560,59 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
         x: 0,
         y: hy + 2,
         width,
-        lineHeight: o.lineHeight * 0.98,
+        lineHeight: o.lineHeight * 1.0,
         align: h.align,
         lines: cl,
       });
-      hy += cl.length * o.lineHeight * 0.98 + 3;
+      hy += cl.length * o.lineHeight * 1.0 + 4;
     }
     if (isBanner) {
-      const bannerH = hy + o.margin.y;
+      const pad = 22;
+      const bannerH = hy + pad * 2;
       pages[0]!.items.push({
         kind: "rect",
-        x: -o.margin.x,
+        x: 0,
         y: 0,
         width: o.page.width,
         height: bannerH,
         color: o.accent,
         role: "banner",
       });
-      // shift text below banner padding
-      for (const it of headerItems) it.y += o.margin.y;
+      for (const it of headerItems) {
+        it.y += pad;
+        it.x += o.margin.x;
+        if (it.kind === "text")
+          for (const ln of it.lines) for (const r of ln.runs) r.color = "#ffffff";
+      }
       pages[0]!.items.push(...headerItems);
-      cursorY = bannerH + 14;
+      cursorY = bannerH + 18;
     } else {
-      for (const it of headerItems) it.y += cursorY;
+      for (const it of headerItems) {
+        it.y += cursorY;
+        it.x += o.margin.x;
+      }
       pages[0]!.items.push(...headerItems);
-      cursorY += hy + 2;
+      cursorY += hy + 6;
       pages[0]!.items.push({
         kind: "rect",
-        x: 0,
+        x: o.margin.x,
         y: cursorY,
         width,
-        height: 1,
+        height: h.variant === "stacked" ? 2 : 0.8,
         color: o.accent,
         role: "rule",
       });
-      cursorY += 12;
+      cursorY += 14;
     }
   }
 
   const summaryAsSection: RenderSection | null = render.summaryRuns
     ? {
         kind: "SUMMARY",
-        title: "PROFESSIONAL SUMMARY",
+        title:
+          render.layout.headingCase === "uppercase"
+            ? "PROFESSIONAL SUMMARY"
+            : "Professional Summary",
         blocks: render.summaryRuns.map(
           (runs) => ({ type: "paragraph", runs, spaceAfter: 0 }) as Block,
         ),
@@ -610,9 +626,10 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
   };
 
   const oneCol = render.columns === 1;
-  const mainWidth = oneCol ? width : round2(width * 0.66);
+  const railPad = oneCol ? 0 : 14; // inner padding of the tinted rail panel
   const railWidth = oneCol ? 0 : round2(width * 0.3);
-  const railGap = oneCol ? 0 : round2(width - mainWidth - railWidth);
+  const railGap = oneCol ? 0 : 18 + railPad;
+  const mainWidth = oneCol ? width : round2(width - railWidth - railGap);
 
   const mainSecs: RenderSection[] = [];
   if (summaryAsSection && (oneCol || !render.layout.rail.includes("SUMMARY")))
@@ -623,18 +640,16 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
 
   // Rail background first so main flow can start on page 1
   const railStartX = o.margin.x + mainWidth + railGap;
-  if (!oneCol && render.railBg) {
-    const bg: RectBox = {
-      kind: "rect",
-      x: railStartX - 12,
-      y: 0,
-      width: railWidth + 12 + o.margin.x,
-      height: o.page.height,
-      color: render.railBg,
-      role: "rail",
-    };
-    pages[0]!.items.push(bg);
-  }
+  const railBgRect = (): RectBox => ({
+    kind: "rect",
+    x: railStartX - railPad,
+    y: 0,
+    width: railWidth + railPad + o.margin.x,
+    height: o.page.height,
+    color: render.railBg ?? "#f3f4f6",
+    role: "rail",
+  });
+  if (!oneCol && render.railBg) pages[0]!.items.unshift(railBgRect());
 
   const flow = (
     units: SectionUnit[],
@@ -662,28 +677,17 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
       for (const it of unit.items) {
         pages[pageIndex]!.items.push({ ...it, x: it.x + colX, y: it.y + y } as PlacedItem);
       }
-      y += unit.height + 1.5;
+      y += unit.height;
     }
     return y;
   };
 
-  const bgFactory =
-    !oneCol && render.railBg
-      ? () =>
-          ({
-            kind: "rect",
-            x: railStartX - 12,
-            y: 0,
-            width: railWidth + 12 + o.margin.x,
-            height: o.page.height,
-            color: render.railBg,
-            role: "rail",
-          }) as RectBox
-      : undefined;
+  const bgFactory = !oneCol && render.railBg ? railBgRect : undefined;
 
   flow(mainUnits, o.margin.x, mainWidth, cursorY, bgFactory);
   if (!oneCol && railUnits.length) {
-    flow(railUnits, railStartX, railWidth, o.margin.y);
+    // rail starts level with the main column (below the header/banner)
+    flow(railUnits, railStartX, railWidth, cursorY);
   }
 
   // Trim pages whose only content is background rects
