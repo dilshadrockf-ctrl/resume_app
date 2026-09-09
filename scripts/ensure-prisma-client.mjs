@@ -6,18 +6,34 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-const marker = join(process.cwd(), "node_modules", ".prisma", "client", "index.js");
+// A real generated client includes the compiled index and a copy of schema.prisma.
+// If Prisma could only write its default "not initialized" stub (e.g. because it
+// tried to download engines and had no network), the schema.prisma marker will be
+// missing and the app crashes at runtime with:
+//   "@prisma/client did not initialize yet. Please run "prisma generate""
+const marker = join(process.cwd(), "node_modules", ".prisma", "client", "schema.prisma");
 if (existsSync(marker)) process.exit(0);
+
+// Use the same offline-safe generation path as `npm run setup`: with the WASM
+// schema engine + driver adapter, generation does not require downloading native
+// Prisma engines (works in restricted/air-gapped networks).
+const env = {
+  ...process.env,
+  PRISMA_OFFLINE: "1",
+  PRISMA_QUERY_ENGINE_LIBRARY: process.execPath,
+  PRISMA_SCHEMA_ENGINE_BINARY: process.execPath,
+};
 
 // Windows needs a shell to resolve `npx` (.cmd shims, PATHEXT).
 const r = spawnSync("npx", ["prisma", "generate"], {
   stdio: "inherit",
   shell: process.platform === "win32",
+  env,
 });
 if (r.status !== 0) {
   console.log(
-    "\n(prisma generate did not run during install — that's OK; run `npm run setup` " +
-      "after configuring .env to generate the client.)\n",
+    "\n(prisma generate did not run during install — run `npm run setup`, or " +
+      "`PRISMA_OFFLINE=1 npm run db:generate`, after configuring .env to generate the client.)\n",
   );
 }
 process.exit(0);
