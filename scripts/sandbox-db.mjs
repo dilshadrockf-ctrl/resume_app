@@ -9,15 +9,25 @@
  *   npm run db:local            # start  (idempotent)
  *   npm run db:local -- stop    # stop
  *
+ * By default the data directory is `.dev/postgres/data`. If your checkout
+ * lives inside a cloud-synced folder (OneDrive, Dropbox, Google Drive, …) or
+ * a network share, PostgreSQL and the sync engine fight over file locks and
+ * `initdb`/startup can hang or corrupt data. Point the data directory at a
+ * local, non-synced folder instead:
+ *
+ *   Windows (cmd):    set POSTGRES_DATA_DIR=C:\resumeforge-data && npm run setup
+ *   PowerShell:       $env:POSTGRES_DATA_DIR="C:\resumeforge-data"; npm run setup
+ *   macOS/Linux:      POSTGRES_DATA_DIR=~/resumeforge-data npm run setup
+ *
  * Not a production tool — production should use your real PostgreSQL.
  */
-import { spawnSync, spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const root = join(process.cwd(), ".dev", "postgres");
+const root = resolve(process.env.POSTGRES_DATA_DIR || join(process.cwd(), ".dev", "postgres"));
 const dataDir = join(root, "data");
 const logFile = join(root, "postgres.log");
 
@@ -61,7 +71,11 @@ function binDir() {
 }
 
 function run(cmd, args, opts = {}) {
-  return spawnSync(cmd, args, { encoding: "utf8", ...opts });
+  return spawnSync(cmd, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...opts,
+  });
 }
 
 function isUp() {
@@ -69,17 +83,70 @@ function isUp() {
   return r.status === 0;
 }
 
+// Cloud-sync / network-drive detection. PostgreSQL requires byte-level file
+// locking and streaming writes; synced folders lock files behind its back,
+// which makes initdb/startup hang (or corrupts the cluster).
+const SYNC_SEGMENTS = [
+  "onedrive",
+  "dropbox",
+  "google drive",
+  "icloud",
+  "skydrive",
+  "box",
+  "box drive",
+  "mega",
+  "nextcloud",
+  "owncloud",
+  "pcloud",
+  "nutstore",
+  "synology drive",
+];
+function isSyncedPath(p) {
+  const segments = p.split(/[\\/]+/).filter(Boolean);
+  return segments.some((s) => {
+    const t = s.toLowerCase();
+    return SYNC_SEGMENTS.some((pref) => t === pref || t.startsWith(`${pref} `));
+  });
+}
+
+function warnIfSynced(dir) {
+  const onNetworkShare = process.platform === "win32" && /^\\\\/.test(dir);
+  if (!isSyncedPath(dir) && !onNetworkShare) return;
+  console.warn(
+    `\n\x1b[33m⚠ PostgreSQL data directory is inside a synced/network folder:\x1b[0m\n   ${dir}\n` +
+      "   Cloud-sync (OneDrive, Dropbox, …) and network drives lock files while\n" +
+      "   PostgreSQL writes to them — `initdb` or server startup can hang, and the\n" +
+      "   data directory can be corrupted. Move it to a local, non-synced folder:\n\n" +
+      (process.platform === "win32"
+        ? "     set POSTGRES_DATA_DIR=C:\\resumeforge-data && npm run setup\n"
+        : "     POSTGRES_DATA_DIR=~/resumeforge-data npm run setup\n") +
+      "   (or move the whole project out of the synced folder).\n",
+  );
+}
+
 function start() {
+  warnIfSynced(dataDir);
   mkdirSync(root, { recursive: true });
   if (!existsSync(join(dataDir, "PG_VERSION"))) {
     console.log(`initializing postgres in ${dataDir}`);
     const pwFile = join(root, "pwfile");
     writeFileSync(pwFile, password);
-    const init = run(join(binDir(), binName("initdb")), [
-      "-D", dataDir, "-U", user, "--pwfile", pwFile, "-E", "UTF8", "--auth-local=trust", "--auth-host=scram-sha-256",
-    ]);
+    // Stream initdb output so a slow (or stuck) init is visible, not silent.
+    // A 10-minute cap guards against infinite hangs on locked/synced storage.
+    const init = run(
+      join(binDir(), binName("initdb")),
+      ["-D", dataDir, "-U", user, "--pwfile", pwFile, "-E", "UTF8", "--auth-local=trust", "--auth-host=scram-sha-256"],
+      { stdio: "inherit", timeout: 10 * 60 * 1000 },
+    );
     if (init.status !== 0) {
-      console.error(init.stdout + init.stderr);
+      console.error(`\n\x1b[31minitdb failed\x1b[0m (exit ${init.status ?? "killed"})`);
+      if (init.error) console.error(`  ${init.error.message}`);
+      console.error(
+        "  Common causes:\n" +
+        `  • the data directory is on a synced/network drive — see warning above, or delete ${dataDir} and retry\n` +
+        "  • antivirus/Defender blocking writes — add an exclusion for the data directory\n" +
+        "  • a leftover/partial cluster — remove the data directory and re-run setup\n",
+      );
       process.exit(1);
     }
   }
@@ -94,11 +161,15 @@ function start() {
       conf += "\nunix_socket_directories = '" + root.replace(/\\/g, "/") + "'\n";
     }
     writeFileSync(cfg, conf);
-    const up = run(join(binDir(), binName("pg_ctl")), [
-      "-D", dataDir, "-l", logFile, "-o", `-p ${port}`, "start", "-w", "-t", "30",
-    ]);
+    const up = run(
+      join(binDir(), binName("pg_ctl")),
+      ["-D", dataDir, "-l", logFile, "-o", `-p ${port}`, "start", "-w", "-t", "30"],
+      { stdio: "inherit", timeout: 120 * 1000 },
+    );
     if (up.status !== 0) {
-      console.error(up.stdout + up.stderr);
+      console.error(`\n\x1b[31mpostgres failed to start\x1b[0m (exit ${up.status ?? "killed"})`);
+      if (up.error) console.error(`  ${up.error.message}`);
+      console.error(`  See ${logFile} for the server log.`);
       process.exit(1);
     }
     console.log("postgres started");
