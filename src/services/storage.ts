@@ -9,7 +9,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream, existsSync, mkdirSync } from "node:fs";
+import fs, { createReadStream, existsSync, mkdirSync } from "node:fs";
 import { Readable } from "node:stream";
 import { stat, writeFile } from "node:fs/promises";
 import { join, normalize, resolve } from "node:path";
@@ -272,11 +272,17 @@ export function storageStatus(): { ok: boolean; driver: string; detail: string }
           : env.FILESYSTEM_STORAGE_DIR,
     };
   void probing;
-  return {
-    ok: false,
-    driver: env.STORAGE_DRIVER,
-    detail: "not yet initialized (initializes on first use)",
-  };
+  if (env.STORAGE_DRIVER === "minio") {
+    return { ok: false, driver: "minio", detail: "requested but not yet connected (probes on first use)" };
+  }
+  // filesystem is lazy but deterministic — verify the directory is writable
+  try {
+    fs.mkdirSync(env.FILESYSTEM_STORAGE_DIR, { recursive: true });
+    fs.accessSync(env.FILESYSTEM_STORAGE_DIR, fs.constants.W_OK);
+    return { ok: true, driver: "filesystem", detail: `${env.FILESYSTEM_STORAGE_DIR} (writable, lazy init)` };
+  } catch (e) {
+    return { ok: false, driver: "filesystem", detail: String((e as Error).message).slice(0, 120) };
+  }
 }
 
 export function resetStorageCacheForTests() {
