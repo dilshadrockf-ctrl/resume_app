@@ -38,3 +38,6 @@ tmp-pgdata/
 !.vscode/settings.json
 .DS_Store
 prisma/.offline-snapshot.prisma
+
+# scratch/debug files — never tracked
+.tmp/
