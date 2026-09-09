@@ -58,9 +58,20 @@ instead.
 **Windows and macOS work too:** the embedded-PostgreSQL binaries are
 OS-specific _optional_ dependencies, so `npm install` fetches only your
 platform's build and skips the rest (no `EBADPLATFORM` errors — just don't
-pass `--no-optional`). `npm run setup` runs in PowerShell as-is. If the
-embedded server can't start on your machine, use `docker compose up -d db`
+pass `--no-optional`). The quickstart commands above run as-is in both
+**PowerShell and cmd.exe** — `npm run setup` is a Node script and its child
+`node`/`npx` calls use `cmd.exe` as the shell on Windows. If the embedded
+server can't start on your machine, use `docker compose up -d db`
 (or any Postgres 16+) and set `DATABASE_URL` in `.env` before running setup.
+
+Windows cmd notes:
+- Don't use Posix env-prefix syntax (`PRISMA_OFFLINE=1 npm ...`); use
+  `set PRISMA_OFFLINE=1 && npm run db:generate` instead.
+- The local `npm run setup` generates `AUTH_SECRET`, so you don't need
+  `openssl` for local development.
+- For the Docker path, use `copy .env.example .env` (cmd has no `cp`) and set
+  `AUTH_SECRET` with:
+  `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
 Then: `npm run typecheck && npm test` — 23 unit tests cover the matching
 engine, cover-letter scaffold, import parser and the AI guardrail.

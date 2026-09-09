@@ -8,8 +8,10 @@
     "node": ">=20.11"
   },
   "scripts": {
+    "predev": "node scripts/ensure-prisma-client.mjs",
     "dev": "next dev -H 0.0.0.0",
     "build": "prisma generate && next build",
+    "prestart": "node scripts/ensure-prisma-client.mjs",
     "start": "next start -H 0.0.0.0",
     "lint": "eslint .",
     "format": "prettier --write .",
@@ -25,6 +27,7 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio --port 5555 --browser none",
+    "preworker": "node scripts/ensure-prisma-client.mjs",
     "worker": "tsx src/workers/main.ts",
     "test": "vitest run",
     "test:watch": "vitest",
