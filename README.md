@@ -20,6 +20,11 @@ machine**. No cloud accounts, no proprietary extensions, no vendor lock-in.
   fit (15%). Every counted term — matched or missing — is shown verbatim from
   the posting. No ATS guarantees are made, because nobody can honestly make
   them.
+- **Detailed ATS analysis.** "Check ATS" in the editor runs a local,
+  deterministic rules engine (reachability, summary, bullet quality, skills,
+  structure, length). Every flagged issue cites what was detected, where, and
+  carries a copyable fix — scores are persisted per version, and manual saves
+  refresh the latest pass through the job queue.
 - **Never lose data.** Autosave with retry/backoff and an explicit
   "save failed — retry" state; version history on every explicit save;
   archiving ≠ deleting; deleting a resume never touches your career profile;
@@ -27,7 +32,10 @@ machine**. No cloud accounts, no proprietary extensions, no vendor lock-in.
   corrupt the editor.
 - **Your data leaves in one click.** `/api/account/data` streams a complete
   JSON export (profile, resumes, versions, jobs, matches, applications,
-  letters, AI provenance). No dark patterns.
+  letters, AI provenance). No dark patterns. Settings also offers a queued
+  server-side copy (same JSON, same export machinery), and draft cover letters
+  can be re-scaffolded from their job through the queue; the AI bulk pass
+  leaves reviewable suggestions, never edits.
 - **Billing is dormant.** The plan tables and entitlement checks exist, but
   no payment provider is wired and no fake checkout screens are shipped.
 

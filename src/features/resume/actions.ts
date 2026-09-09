@@ -60,6 +60,24 @@ export async function saveResumeAction(
         label: parsed.data.label,
       });
       revalidatePath("/resumes");
+      // keep the ATS score fresh where a new version exists; a queue hiccup
+      // here can never affect the save the user just made (§103)
+      if (result.versionCreated && parsed.data.mode === "manual") {
+        const { db } = await import("@/db/client");
+        const { enqueue } = await import("@/services/queue");
+        const last = await db.resumeVersion.findFirst({
+          where: { resumeId: parsed.data.resumeId },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        });
+        if (last)
+          void enqueue(
+            "RESUME_ANALYZE",
+            ctx.userId,
+            { type: "RESUME_ANALYZE", versionId: last.id },
+            { maxAttempts: 2 },
+          ).catch(() => {});
+      }
       return ok({
         savedAt: result.savedAt,
         versionCreated: result.versionCreated,
@@ -253,9 +271,7 @@ export async function requestExportAction(raw: {
   );
 }
 
-export async function getExportStatusAction(raw: {
-  exportId: string;
-}): Promise<
+export async function getExportStatusAction(raw: { exportId: string }): Promise<
   ActionResult<{
     status: string;
     fileName?: string;
@@ -272,9 +288,7 @@ export async function getExportStatusAction(raw: {
   });
 }
 
-export async function loadVersionsAction(raw: {
-  resumeId: string;
-}): Promise<
+export async function loadVersionsAction(raw: { resumeId: string }): Promise<
   ActionResult<
     Array<{
       id: string;

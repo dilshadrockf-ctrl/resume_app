@@ -17,6 +17,9 @@ import {
   aiStatusAction,
   recentAiAction,
   aiJobsAction,
+  aiBulkRunAction,
+  aiBulkPendingAction,
+  aiReviewAction,
   type Suggestion,
 } from "@/features/ai/actions";
 
@@ -281,6 +284,103 @@ export function AiDialog({
           </form>
         )}
       </DialogContent>
+      <div className="mt-4 border-t border-border pt-3">
+        <BulkPass resumeId={resumeId} />
+      </div>
     </Dialog>
+  );
+}
+
+/** Queued bulk pass over recent bullets: nothing here writes to the resume —
+ *  results wait as pending suggestions you approve, copy, or discard. */
+function BulkPass({ resumeId }: { resumeId: string }) {
+  const [busy, setBusy] = React.useState(false);
+  type PendingItem = {
+    id: string;
+    sectionKind: string;
+    entryRef: string | null;
+    original: string | null;
+    suggested: string | null;
+    rationale: string | null;
+    provider: string | null;
+    model: string | null;
+    createdAt: string;
+  };
+  const [items, setItems] = React.useState<PendingItem[] | null>(null);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const res = await aiBulkRunAction({ resumeId });
+      if (res.ok) toast.success("Bulk pass queued — check the pending list in a moment.");
+      else toast.error(res.error ?? "Could not queue.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const refresh = async () => {
+    const res = await aiBulkPendingAction({ resumeId });
+    if (res.ok) setItems(res.data);
+  };
+  const decide = async (id: string, decision: "ACCEPTED" | "REJECTED") => {
+    await aiReviewAction({ id, decision });
+    void refresh();
+  };
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">Bulk pass (queued)</p>
+        <div className="flex gap-1.5">
+          <Button type="button" size="sm" variant="ghost" onClick={refresh}>
+            Refresh pending
+          </Button>
+          <Button type="button" size="sm" onClick={run} disabled={busy}>
+            {busy ? <Spinner /> : <Sparkles className="h-3.5 w-3.5" />} Find tightening
+            opportunities
+          </Button>
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        One reviewable suggestion per long bullet (up to 8), guarded by the same rules — originals
+        stay until you copy them into a section.
+      </p>
+      {items && items.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Nothing pending right now.</p>
+      ) : null}
+      {items?.map((it: PendingItem) => (
+        <div key={it.id} className="rounded border border-border p-2 text-xs">
+          <p className="font-medium">
+            {it.sectionKind} · {it.entryRef} · {it.provider}/{it.model}
+          </p>
+          <p className="mt-1 whitespace-pre-wrap text-muted-foreground">{it.original ?? "—"}</p>
+          <p className="mt-1 whitespace-pre-wrap">{it.suggested ?? "—"}</p>
+          <div className="mt-1.5 flex gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => void navigator.clipboard?.writeText(it.suggested ?? "")}
+            >
+              Copy
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => decide(it.id, "ACCEPTED")}
+            >
+              Keep as accepted
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => decide(it.id, "REJECTED")}
+            >
+              Discard
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

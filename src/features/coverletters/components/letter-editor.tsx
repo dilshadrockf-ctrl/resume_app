@@ -1,11 +1,11 @@
 "use client";
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Check, Copy, Send } from "lucide-react";
+import { Check, Copy, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Field, Input, Textarea } from "@/components/ui/primitives";
 import { toast } from "@/components/ui/toast";
-import { saveLetterAction } from "@/features/coverletters/actions";
+import { saveLetterAction, queueLetterRebuildAction } from "@/features/coverletters/actions";
 
 export function LetterEditor({
   letter,
@@ -24,10 +24,30 @@ export function LetterEditor({
   const router = useRouter();
   const [content, setContent] = React.useState(letter.content);
   const [savedAt, setSavedAt] = React.useState<string | null>(null);
+  const [rebuilding, setRebuilding] = React.useState(false);
   const dirtyRef = React.useRef(false);
   const inFlight = React.useRef<Promise<unknown>>(Promise.resolve());
   const contentRef = React.useRef(content);
   contentRef.current = content;
+
+  const rebuild = async () => {
+    setRebuilding(true);
+    try {
+      if (dirtyRef.current) {
+        dirtyRef.current = false;
+        await inFlight.current;
+        await saveLetterAction({ id: letter.id, content: contentRef.current });
+      }
+      const res = await queueLetterRebuildAction({ id: letter.id });
+      if (!res.ok) toast.error(res.error ?? "Could not queue rebuild.");
+      else {
+        router.refresh();
+        toast.success("Rebuilt from the job — the draft will refresh shortly.");
+      }
+    } finally {
+      setRebuilding(false);
+    }
+  };
 
   React.useEffect(() => {
     const t = setInterval(async () => {
@@ -108,6 +128,12 @@ export function LetterEditor({
           {letter.tone.toLowerCase()} · length: {letter.length.toLowerCase()}
         </span>
         <span className="flex-1" />
+        {letter.status === "DRAFT" ? (
+          <Button size="sm" variant="outline" disabled={rebuilding} onClick={rebuild}>
+            <RefreshCw className={rebuilding ? "h-4 w-4 animate-spin" : "h-4 w-4"} /> Rebuild from
+            job
+          </Button>
+        ) : null}
         <Button
           size="sm"
           variant="outline"

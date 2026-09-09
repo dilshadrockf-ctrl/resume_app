@@ -273,13 +273,21 @@ export function storageStatus(): { ok: boolean; driver: string; detail: string }
     };
   void probing;
   if (env.STORAGE_DRIVER === "minio") {
-    return { ok: false, driver: "minio", detail: "requested but not yet connected (probes on first use)" };
+    return {
+      ok: false,
+      driver: "minio",
+      detail: "requested but not yet connected (probes on first use)",
+    };
   }
   // filesystem is lazy but deterministic — verify the directory is writable
   try {
     fs.mkdirSync(env.FILESYSTEM_STORAGE_DIR, { recursive: true });
     fs.accessSync(env.FILESYSTEM_STORAGE_DIR, fs.constants.W_OK);
-    return { ok: true, driver: "filesystem", detail: `${env.FILESYSTEM_STORAGE_DIR} (writable, lazy init)` };
+    return {
+      ok: true,
+      driver: "filesystem",
+      detail: `${env.FILESYSTEM_STORAGE_DIR} (writable, lazy init)`,
+    };
   } catch (e) {
     return { ok: false, driver: "filesystem", detail: String((e as Error).message).slice(0, 120) };
   }

@@ -7,6 +7,7 @@ import type { RenderDoc } from "@/templates/blocks";
 import type { ResumeDocument } from "@/lib/resume/document";
 import { saveResumeDocument } from "@/features/resume/repository";
 import { computeStats } from "@/lib/resume/stats";
+import { analyzeResume } from "@/lib/ats-analysis";
 
 /**
  * Export pipeline (§52-§54, §103-§104). Rendering runs in a job so a broken
@@ -202,15 +203,64 @@ export function ensureExportHandlers() {
 }
 
 async function runAnalyze(versionId: string): Promise<{ score: number }> {
-  const version = await db.resumeVersion.findUnique({ where: { id: versionId } });
+  const result = await persistAnalysis(versionId);
+  return { score: result.score };
+}
+
+/** Compute + persist an ATS-style analysis for one version. Shared by the
+ *  queue handler and the editor's "Run now" button (it's a local
+ *  deterministic pass — no AI, no network). */
+export async function persistAnalysis(versionId: string) {
+  const version = await db.resumeVersion.findUnique({
+    where: { id: versionId },
+    include: { resume: { select: { careerProfile: { select: { userId: true } } } } },
+  });
   if (!version) throw new Error("version missing");
   const doc = version.snapshot as unknown as ResumeDocument;
   const stats = computeStats(doc);
+  const analysis = analyzeResume(doc);
+  const userId = version.resume.careerProfile.userId;
+  await db.resumeAnalysis.deleteMany({
+    where: { resumeVersionId: versionId, atsEngineVersion: analysis.engineVersion },
+  });
+  await db.resumeAnalysis.create({
+    data: {
+      userId,
+      kind: "ATS",
+      resumeVersionId: versionId,
+      score: analysis.score,
+      breakdown: analysis.breakdown as never,
+      issues: analysis.issues as never,
+      atsEngineVersion: analysis.engineVersion,
+    },
+  });
   await db.resumeVersion.update({
     where: { id: versionId },
-    data: { atsScore: stats.score, pageEstimate: Math.ceil(stats.estimatedLines / 46) },
+    data: { atsScore: analysis.score, pageEstimate: Math.ceil(stats.estimatedLines / 46) },
   });
-  return { score: stats.score };
+  return { score: analysis.score, issues: analysis.issues.length };
+}
+
+/** Latest analysis for a resume (any version), computing one if never run. */
+export async function latestAnalysis(userId: string, resumeId: string) {
+  const version = await db.resumeVersion.findFirst({
+    where: { resumeId, resume: { careerProfile: { userId } } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, label: true, createdAt: true },
+  });
+  if (!version) return null;
+  let analysis = await db.resumeAnalysis.findFirst({
+    where: { resumeVersionId: version.id, userId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!analysis) {
+    await persistAnalysis(version.id);
+    analysis = await db.resumeAnalysis.findFirst({
+      where: { resumeVersionId: version.id, userId },
+      orderBy: { createdAt: "desc" },
+    });
+  }
+  return { version, analysis };
 }
 
 /** analyze a resume now (used on save + dashboard). */

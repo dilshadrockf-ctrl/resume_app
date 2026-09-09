@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { AnalysisDialog } from "@/features/resume/analysis-dialog";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -19,6 +20,7 @@ import {
   Pencil,
   Rocket,
   Save,
+  ScanSearch,
   Sparkles,
   Undo2,
   Zap,
@@ -247,7 +249,7 @@ export function ResumeEditor({
   );
 
   const [dialog, setDialog] = React.useState<
-    null | "template" | "versions" | "export" | "contact" | "publish" | "ai"
+    null | "template" | "versions" | "export" | "contact" | "publish" | "ai" | "analysis"
   >(null);
 
   React.useEffect(() => {
@@ -445,6 +447,11 @@ export function ResumeEditor({
         }}
       />
 
+      <AnalysisDialog
+        open={dialog === "analysis"}
+        onOpenChange={(o) => !o && setDialog(null)}
+        resumeId={resumeId}
+      />
       <VersionsDialog
         open={dialog === "versions"}
         onClose={() => setDialog(null)}

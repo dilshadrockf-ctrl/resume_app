@@ -8,10 +8,16 @@ import { log } from "@/lib/logger";
 import { startWorkerLoop } from "@/services/queue";
 import { ensureExportHandlers } from "@/features/export/service";
 import { ensureImportHandlers } from "@/features/import/service";
+import { ensureAiHandlers } from "@/features/ai/service";
+import { ensureLetterHandlers } from "@/features/coverletters/service";
+import { ensureAccountExportHandlers } from "@/features/account/export";
 
 async function main() {
   ensureExportHandlers();
   ensureImportHandlers();
+  ensureAiHandlers();
+  ensureLetterHandlers();
+  ensureAccountExportHandlers();
   const close = await startWorkerLoop(() => log.info("worker consuming queues"));
   const bye = async () => {
     log.info("worker: shutting down");

@@ -124,3 +124,61 @@ export async function aiJobsAction(): Promise<ActionResult<Array<{ id: string; t
   });
   return ok(rows);
 }
+
+// ────────────────── queued bulk pass + review of its results ──────────────────
+export async function aiBulkRunAction(raw: {
+  resumeId: string;
+}): Promise<ActionResult<{ generationId: string }>> {
+  return withValidation(z.object({ resumeId: z.string().min(1).max(64) }), raw, async (input) => {
+    const ctx = await requireCtx();
+    try {
+      const { enqueueBulkSuggestions } = await import("@/features/ai/service");
+      const res = await enqueueBulkSuggestions(ctx, { resumeId: input.resumeId });
+      return ok(res);
+    } catch (e) {
+      return fail((e as Error)?.message ?? "Queue failed.", "INTERNAL");
+    }
+  });
+}
+
+export async function aiBulkPendingAction(raw: { resumeId: string }) {
+  return withValidation(z.object({ resumeId: z.string().min(1).max(64) }), raw, async (input) => {
+    const ctx = await requireCtx();
+    const { listBulkPending } = await import("@/features/ai/service");
+    return ok(await listBulkPending(ctx.userId, input.resumeId));
+  });
+}
+
+export async function aiReviewAction(raw: {
+  id: string;
+  decision: "ACCEPTED" | "REJECTED";
+  finalText?: string;
+}): Promise<ActionResult> {
+  return withValidation(
+    z.object({
+      id: z.string().min(1).max(64),
+      decision: z.enum(["ACCEPTED", "REJECTED"]),
+      finalText: z.string().max(4000).optional(),
+    }),
+    raw,
+    async (input) => {
+      const ctx = await requireCtx();
+      const rec = await db.recommendation.findFirst({
+        where: { id: input.id, userId: ctx.userId, status: "PENDING" },
+      });
+      if (!rec) return fail("No pending suggestion with that id.", "NOT_FOUND");
+      await db.recommendation.update({
+        where: { id: rec.id },
+        data:
+          input.decision === "ACCEPTED"
+            ? {
+                status: "ACCEPTED",
+                edited: input.finalText?.trim() ? input.finalText.trim() : null,
+              }
+            : { status: "REJECTED" },
+      });
+      await audit(ctx, "ai.review", { recommendationId: rec.id, decision: input.decision });
+      return ok(undefined);
+    },
+  );
+}

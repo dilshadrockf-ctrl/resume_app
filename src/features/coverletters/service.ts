@@ -1,4 +1,5 @@
 import { db } from "@/db/client";
+import { registerHandler } from "@/services/queue";
 import { ForbiddenError, type Ctx } from "@/server/context";
 import { scaffoldLetter, type Length, type Tone } from "@/lib/coverletter";
 import { loadResumeDocument } from "@/features/resume/repository";
@@ -102,3 +103,63 @@ export async function saveLetter(
     },
   });
 }
+
+/**
+ * Queued rebuild of a DRAFT letter from its linked job (deterministic
+ * scaffold refresh — §42). Never touches FINAL/SENT letters.
+ */
+export async function rebuildLetterForJob(
+  letterId: string,
+): Promise<{ updated: boolean; reason?: string }> {
+  const letter = await db.coverLetter.findUnique({
+    where: { id: letterId },
+    include: { jobDescription: true },
+  });
+  if (!letter) return { updated: false, reason: "letter missing" };
+  if (letter.status !== "DRAFT")
+    return { updated: false, reason: `letter is ${letter.status.toLowerCase()} — drafts only` };
+  if (!letter.jobDescription) return { updated: false, reason: "no job linked" };
+  const profile = await db.careerProfile.findFirst({
+    where: { userId: letter.userId },
+    select: { id: true },
+  });
+  if (!profile) return { updated: false, reason: "profile missing" };
+  const resumes = await db.resume.findMany({
+    where: { careerProfileId: profile.id, deletedAt: null },
+    select: { id: true },
+    orderBy: { updatedAt: "desc" },
+    take: 1,
+  });
+  if (!resumes[0]) return { updated: false, reason: "no resume to source facts from" };
+  const ctx = { userId: letter.userId } as Ctx;
+  const { doc } = await loadResumeDocument(letter.userId, resumes[0].id);
+  const job = letter.jobDescription;
+  const jobSnippets = job.rawText
+    .split(/\r?\n/)
+    .filter((line) => /you (will|have|bring)|responsibilit|ideal candidate|what you/i.test(line))
+    .slice(0, 3)
+    .map((line) => line.replace(/^\W+/, "").trim());
+  const built = scaffoldLetter({
+    doc,
+    company: letter.company,
+    role: letter.role,
+    hiringManager: letter.hiringManager ?? undefined,
+    tone: letter.tone as Tone,
+    length: letter.length as Length,
+    jobSnippets,
+  });
+  if (!built || built === letter.content) return { updated: false, reason: "nothing new to add" };
+  await db.coverLetter.update({ where: { id: letterId }, data: { content: built } });
+  return { updated: true };
+}
+
+let letterHandlersRegistered = false;
+export function ensureLetterHandlers() {
+  if (letterHandlersRegistered) return;
+  letterHandlersRegistered = true;
+  registerHandler("COVER_LETTER_GENERATE", async (payload) => {
+    if (payload.type !== "COVER_LETTER_GENERATE") throw new Error("wrong payload");
+    return rebuildLetterForJob(payload.coverLetterId);
+  });
+}
+ensureLetterHandlers();

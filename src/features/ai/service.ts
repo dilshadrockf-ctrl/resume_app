@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { db } from "@/db/client";
+import { registerHandler } from "@/services/queue";
 import { type Ctx } from "@/server/context";
 import { loadResumeDocument } from "@/features/resume/repository";
 import {
@@ -219,3 +220,155 @@ export async function recordOutcome(
 }
 
 export { hashInput, evaluateOutput };
+
+// ───────────────────────── queued bulk pass (AI_GENERATE) ────────────────────
+// Runs the same guard-railed suggestion flow across recent bullets and leaves
+// every result as a PENDING Recommendation. Nothing is ever applied here.
+
+export type BulkInput = { resumeId: string };
+
+export async function enqueueBulkSuggestions(
+  ctx: Ctx,
+  input: BulkInput,
+): Promise<{ generationId: string }> {
+  if (!aiStatus().configured)
+    throw new SuggestError(
+      "AI provider not configured — set AI_PROVIDER in .env to enable suggestions.",
+      "UNREACHABLE",
+    );
+  const gen = await db.aIGeneration.create({
+    data: {
+      userId: ctx.userId,
+      action: "bulk_suggest",
+      status: "SUCCESS",
+      provider: aiStatus().provider,
+      model: aiStatus().model ?? "unknown",
+      promptKey: "resume.suggest.tighten",
+      promptVersion: PROMPT_VERSION,
+    },
+  });
+  const { enqueue } = await import("@/services/queue");
+  await enqueue(
+    "AI_GENERATE",
+    ctx.userId,
+    { type: "AI_GENERATE", generationId: gen.id, action: "bulk_suggest", input },
+    { maxAttempts: 1 },
+  );
+  return { generationId: gen.id };
+}
+
+export async function runBulkSuggestions(
+  userId: string,
+  generationId: string,
+  input: BulkInput,
+): Promise<{ considered: number; created: number }> {
+  const started = Date.now();
+  let considered = 0;
+  let created = 0;
+  try {
+    const { doc } = await loadResumeDocument(userId, input.resumeId);
+    const targets: Array<{ kind: string; index: number; text: string }> = [];
+    for (const sec of doc.sections) {
+      if (!sec.visible || (sec.kind !== "EXPERIENCE" && sec.kind !== "PROJECTS")) continue;
+      sec.items.forEach((item, index) => {
+        if (!item.visible) return;
+        const bullets = Array.isArray((item as { bullets?: string[] }).bullets)
+          ? (item as { bullets: string[] }).bullets
+          : [];
+        const text = bullets.join("\n");
+        if (text.trim().length >= 60) targets.push({ kind: sec.kind, index, text });
+      });
+    }
+    const capped = targets.slice(0, 8); // bounded per run — quota-friendly, reviewable in one sitting
+    for (const t of capped) {
+      considered++;
+      try {
+        const userPrompt = `Text (${t.kind.toLowerCase()} entry):\n"""\n${t.text}\n"""\n(Rewrite these bullet lines only.)\n\nTask: Make it tighter: cut filler and redundancy, keep every fact.`;
+        const result = await complete({
+          promptKey: "resume.suggest.tighten",
+          promptVersion: PROMPT_VERSION,
+          system: FACTS_SYSTEM_PROMPT,
+          user: userPrompt,
+          maxTokens: 400,
+        });
+        if (evaluateOutput(t.text, result.text) !== "ok") continue;
+        await db.recommendation.create({
+          data: {
+            userId,
+            entryRef: `${t.kind.toLowerCase()}:${t.index}`,
+            sectionKind: t.kind as never,
+            action: "REWRITE_BULLET",
+            rationale: `AI (${result.provider}/${result.model}) · bulk tighten · original kept for review`,
+            original: t.text,
+            suggested: result.text.slice(0, 4000),
+            snapshotBefore: { resumeId: input.resumeId, bulkGenerationId: generationId } as never,
+            promptKey: "resume.suggest.tighten",
+            promptVersion: String(PROMPT_VERSION),
+            provider: result.provider,
+            model: result.model,
+          },
+        });
+        created++;
+      } catch {
+        /* per-item failures skip — the pass continues */
+      }
+    }
+    await db.aIGeneration.update({
+      where: { id: generationId },
+      data: {
+        durationMs: Date.now() - started,
+        status: created > 0 ? "SUCCESS" : "INVALID_OUTPUT",
+        output: { considered, created } as never,
+      },
+    });
+    return { considered, created };
+  } catch (e) {
+    await db.aIGeneration.update({
+      where: { id: generationId },
+      data: {
+        status: "FAILED",
+        durationMs: Date.now() - started,
+        error: String((e as Error)?.message ?? e).slice(0, 400),
+      },
+    });
+    throw e;
+  }
+}
+
+export async function listBulkPending(userId: string, resumeId: string) {
+  const rows = await db.recommendation.findMany({
+    where: { userId, status: "PENDING", provider: { not: null } },
+    orderBy: { createdAt: "desc" },
+    take: 12,
+  });
+  return rows
+    .filter((r) => (r.snapshotBefore as { resumeId?: string } | null)?.resumeId === resumeId)
+    .map((r) => ({
+      id: r.id,
+      sectionKind: r.sectionKind,
+      entryRef: r.entryRef,
+      original: r.original,
+      suggested: r.suggested,
+      rationale: r.rationale,
+      provider: r.provider,
+      model: r.model,
+      createdAt: r.createdAt.toISOString(),
+    }));
+}
+
+let aiHandlersRegistered = false;
+export function ensureAiHandlers() {
+  if (aiHandlersRegistered) return;
+  aiHandlersRegistered = true;
+  registerHandler("AI_GENERATE", async (payload) => {
+    if (payload.type !== "AI_GENERATE" || payload.action !== "bulk_suggest")
+      throw new Error("wrong payload");
+    const gen = await db.aIGeneration.findUnique({
+      where: { id: payload.generationId },
+      select: { userId: true },
+    });
+    if (!gen) throw new Error("generation row missing");
+    return runBulkSuggestions(gen.userId, payload.generationId, payload.input as BulkInput);
+  });
+}
+ensureAiHandlers();
