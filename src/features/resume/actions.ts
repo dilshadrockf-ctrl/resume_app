@@ -20,23 +20,39 @@ const idDocSchema = z.object({
   doc: resumeDocumentSchema,
 });
 
-export type SavePayload = { resumeId: string; mode: "autosave" | "manual"; label?: string; doc: ResumeDocument };
+export type SavePayload = {
+  resumeId: string;
+  mode: "autosave" | "manual";
+  label?: string;
+  doc: ResumeDocument;
+};
 
-export async function createResumeAction(raw: { name: string }): Promise<ActionResult<{ resumeId: string }>> {
-  return withValidation(z.object({ name: z.string().trim().min(1).max(120) }), raw, async (input) => {
-    const ctx = await requireCtx();
-    const { resumeId } = await service.createResume(ctx, input.name);
-    await audit(ctx, "resume_created", { resumeId });
-    revalidatePath("/resumes");
-    revalidatePath("/dashboard");
-    return ok({ resumeId });
-  });
+export async function createResumeAction(raw: {
+  name: string;
+}): Promise<ActionResult<{ resumeId: string }>> {
+  return withValidation(
+    z.object({ name: z.string().trim().min(1).max(120) }),
+    raw,
+    async (input) => {
+      const ctx = await requireCtx();
+      const { resumeId } = await service.createResume(ctx, input.name);
+      await audit(ctx, "resume_created", { resumeId });
+      revalidatePath("/resumes");
+      revalidatePath("/dashboard");
+      return ok({ resumeId });
+    },
+  );
 }
 
-export async function saveResumeAction(raw: SavePayload): Promise<ActionResult<{ savedAt: string; versionCreated: boolean; idMap: Record<string, string> }>> {
+export async function saveResumeAction(
+  raw: SavePayload,
+): Promise<
+  ActionResult<{ savedAt: string; versionCreated: boolean; idMap: Record<string, string> }>
+> {
   return guard(async () => {
     const parsed = idDocSchema.safeParse(raw);
-    if (!parsed.success) return fail("This document failed validation and was not saved.", "VALIDATION");
+    if (!parsed.success)
+      return fail("This document failed validation and was not saved.", "VALIDATION");
     const ctx = await requireCtx();
     try {
       const result = await service.saveDoc(ctx, parsed.data.resumeId, parsed.data.doc, {
@@ -44,18 +60,28 @@ export async function saveResumeAction(raw: SavePayload): Promise<ActionResult<{
         label: parsed.data.label,
       });
       revalidatePath("/resumes");
-      return ok({ savedAt: result.savedAt, versionCreated: result.versionCreated, idMap: result.idMap ?? {} });
+      return ok({
+        savedAt: result.savedAt,
+        versionCreated: result.versionCreated,
+        idMap: result.idMap ?? {},
+      });
     } catch (e) {
       // Never lose the client's state: surface a retryable error verbatim.
       if (e instanceof Error && (e.message === "NOT_FOUND" || e.name === "ForbiddenError")) {
-        return fail("This resume no longer exists (it may have been deleted in another tab).", "NOT_FOUND");
+        return fail(
+          "This resume no longer exists (it may have been deleted in another tab).",
+          "NOT_FOUND",
+        );
       }
       throw e;
     }
   });
 }
 
-export async function renameResumeAction(raw: { resumeId: string; name: string }): Promise<ActionResult<undefined>> {
+export async function renameResumeAction(raw: {
+  resumeId: string;
+  name: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(
     z.object({ resumeId: z.string().min(1).max(64), name: z.string().trim().min(1).max(120) }),
     raw,
@@ -68,7 +94,9 @@ export async function renameResumeAction(raw: { resumeId: string; name: string }
   );
 }
 
-export async function duplicateResumeAction(raw: { resumeId: string }): Promise<ActionResult<{ resumeId: string }>> {
+export async function duplicateResumeAction(raw: {
+  resumeId: string;
+}): Promise<ActionResult<{ resumeId: string }>> {
   return withValidation(resumeIdSchema, raw, async (input) => {
     const ctx = await requireCtx();
     const id = await service.duplicateResume(ctx, input.resumeId);
@@ -78,7 +106,9 @@ export async function duplicateResumeAction(raw: { resumeId: string }): Promise<
   });
 }
 
-export async function deleteResumeAction(raw: { resumeId: string }): Promise<ActionResult<undefined>> {
+export async function deleteResumeAction(raw: {
+  resumeId: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(resumeIdSchema, raw, async (input) => {
     const ctx = await requireCtx();
     await service.softDeleteResume(ctx, input.resumeId);
@@ -89,7 +119,9 @@ export async function deleteResumeAction(raw: { resumeId: string }): Promise<Act
   });
 }
 
-export async function restoreResumeAction(raw: { resumeId: string }): Promise<ActionResult<undefined>> {
+export async function restoreResumeAction(raw: {
+  resumeId: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(resumeIdSchema, raw, async (input) => {
     const ctx = await requireCtx();
     await service.restoreResume(ctx, input.resumeId);
@@ -98,7 +130,10 @@ export async function restoreResumeAction(raw: { resumeId: string }): Promise<Ac
   });
 }
 
-export async function archiveResumeAction(raw: { resumeId: string; archived: boolean }): Promise<ActionResult<undefined>> {
+export async function archiveResumeAction(raw: {
+  resumeId: string;
+  archived: boolean;
+}): Promise<ActionResult<undefined>> {
   return withValidation(resumeIdSchema.extend({ archived: z.boolean() }), raw, async (input) => {
     const ctx = await requireCtx();
     await service.setArchived(ctx, input.resumeId, input.archived);
@@ -107,7 +142,10 @@ export async function archiveResumeAction(raw: { resumeId: string; archived: boo
   });
 }
 
-export async function switchTemplateAction(raw: { resumeId: string; templateId: string }): Promise<ActionResult<undefined>> {
+export async function switchTemplateAction(raw: {
+  resumeId: string;
+  templateId: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(
     z.object({ resumeId: z.string().min(1).max(64), templateId: z.string().min(1).max(64) }),
     raw,
@@ -122,7 +160,10 @@ export async function switchTemplateAction(raw: { resumeId: string; templateId: 
   );
 }
 
-export async function restoreVersionAction(raw: { resumeId: string; versionId: string }): Promise<ActionResult<undefined>> {
+export async function restoreVersionAction(raw: {
+  resumeId: string;
+  versionId: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(
     z.object({ resumeId: z.string().min(1).max(64), versionId: z.string().min(1).max(64) }),
     raw,
@@ -136,9 +177,15 @@ export async function restoreVersionAction(raw: { resumeId: string; versionId: s
   );
 }
 
-export async function setPrimaryVersionAction(raw: { resumeId: string; versionId: string | null }): Promise<ActionResult<undefined>> {
+export async function setPrimaryVersionAction(raw: {
+  resumeId: string;
+  versionId: string | null;
+}): Promise<ActionResult<undefined>> {
   return withValidation(
-    z.object({ resumeId: z.string().min(1).max(64), versionId: z.string().min(1).max(64).nullable() }),
+    z.object({
+      resumeId: z.string().min(1).max(64),
+      versionId: z.string().min(1).max(64).nullable(),
+    }),
     raw,
     async (input) => {
       const ctx = await requireCtx();
@@ -158,7 +205,11 @@ export async function publishResumeAction(raw: {
     resumeIdSchema.extend({
       published: z.boolean(),
       publicFields: z
-        .object({ showEmail: z.boolean().optional(), showPhone: z.boolean().optional(), showPhoto: z.boolean().optional() })
+        .object({
+          showEmail: z.boolean().optional(),
+          showPhone: z.boolean().optional(),
+          showPhoto: z.boolean().optional(),
+        })
         .optional(),
     }),
     raw,
@@ -193,7 +244,8 @@ export async function requestExportAction(raw: {
     async (input) => {
       const ctx = await requireCtx();
       const limit = await rateLimit("export", ctx.userId);
-      if (!limit.ok) return fail("You're exporting very fast — try again in a minute.", "RATE_LIMITED");
+      if (!limit.ok)
+        return fail("You're exporting very fast — try again in a minute.", "RATE_LIMITED");
       const { createExportJob } = await import("@/features/export/service");
       const res = await createExportJob(ctx, input.resumeId, input.format, input.versionId ?? null);
       return ok(res);
@@ -201,8 +253,16 @@ export async function requestExportAction(raw: {
   );
 }
 
-export async function getExportStatusAction(raw: { exportId: string }): Promise<
-  ActionResult<{ status: string; fileName?: string; sizeBytes?: number; error?: string; errorKind?: string }>
+export async function getExportStatusAction(raw: {
+  exportId: string;
+}): Promise<
+  ActionResult<{
+    status: string;
+    fileName?: string;
+    sizeBytes?: number;
+    error?: string;
+    errorKind?: string;
+  }>
 > {
   return withValidation(z.object({ exportId: z.string().min(1).max(64) }), raw, async (input) => {
     const ctx = await requireCtx();
@@ -212,8 +272,21 @@ export async function getExportStatusAction(raw: { exportId: string }): Promise<
   });
 }
 
-export async function loadVersionsAction(raw: { resumeId: string }): Promise<
-  ActionResult<Array<{ id: string; label: string; source: string; createdAt: string; note: string | null; isPrimary: boolean; atsScore: number | null; jobDescription: { title: string; company: string } | null }>>
+export async function loadVersionsAction(raw: {
+  resumeId: string;
+}): Promise<
+  ActionResult<
+    Array<{
+      id: string;
+      label: string;
+      source: string;
+      createdAt: string;
+      note: string | null;
+      isPrimary: boolean;
+      atsScore: number | null;
+      jobDescription: { title: string; company: string } | null;
+    }>
+  >
 > {
   return withValidation(resumeIdSchema, raw, async (input) => {
     const ctx = await requireCtx();
@@ -224,16 +297,20 @@ export async function loadVersionsAction(raw: { resumeId: string }): Promise<
         label: r.label,
         source: String(r.source),
         createdAt: r.createdAt.toISOString(),
-        note: r.note?.startsWith("hash:") ? r.note : r.note ?? null,
+        note: r.note?.startsWith("hash:") ? r.note : (r.note ?? null),
         isPrimary: r.isPrimary,
         atsScore: r.atsScore,
-        jobDescription: r.jobDescription ? { title: r.jobDescription.title, company: r.jobDescription.company ?? "" } : null,
+        jobDescription: r.jobDescription
+          ? { title: r.jobDescription.title, company: r.jobDescription.company ?? "" }
+          : null,
       })),
     );
   });
 }
 
-export async function loadResumeForEditorAction(raw: { resumeId: string }): Promise<ActionResult<{ doc: ResumeDocument }>> {
+export async function loadResumeForEditorAction(raw: {
+  resumeId: string;
+}): Promise<ActionResult<{ doc: ResumeDocument }>> {
   return withValidation(resumeIdSchema, raw, async (input) => {
     const ctx = await requireCtx();
     const loaded = await service.loadDoc(ctx, input.resumeId);

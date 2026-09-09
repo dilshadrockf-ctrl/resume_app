@@ -49,7 +49,10 @@ export function ResumePreview({
     const t = setTimeout(() => {
       try {
         const def = getTemplate(doc.meta.templateId);
-        const merged = { ...def.defaultConfig, ...doc.meta.config } as ResumeDocument["meta"]["config"];
+        const merged = {
+          ...def.defaultConfig,
+          ...doc.meta.config,
+        } as ResumeDocument["meta"]["config"];
         const render = buildRenderDoc(doc, merged);
         const measurer = createDomMeasurer(96 / 72);
         const placed = typesetDoc(render, measurer);
@@ -78,7 +81,10 @@ export function ResumePreview({
     <div ref={boxRef} className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-auto p-4" id="resume-print-area">
         {html ? (
-          <div style={{ width: meta.widthPx, margin: "0 auto" }} dangerouslySetInnerHTML={{ __html: html }} />
+          <div
+            style={{ width: meta.widthPx, margin: "0 auto" }}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
         ) : (
           <div className="flex h-[400px] items-center justify-center gap-2 text-sm text-muted-foreground">
             <Spinner /> {rendering ? "Typesetting…" : "Nothing to preview yet"}
@@ -87,7 +93,8 @@ export function ResumePreview({
       </div>
       <div className="flex items-center justify-between border-t px-4 py-1.5 text-[11px] text-muted-foreground">
         <span>
-          {meta.pages} page{meta.pages === 1 ? "" : "s"} · {doc.meta.paperSize} · {getTemplate(doc.meta.templateId).name}
+          {meta.pages} page{meta.pages === 1 ? "" : "s"} · {doc.meta.paperSize} ·{" "}
+          {getTemplate(doc.meta.templateId).name}
         </span>
         <span>Preview matches export (same paginator)</span>
       </div>

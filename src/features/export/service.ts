@@ -34,7 +34,10 @@ export async function createExportJob(
   if (!resume) throw new ForbiddenError("NOT_FOUND");
   let snapshotSource: "current" | string = "current";
   if (versionId) {
-    const v = await db.resumeVersion.findFirst({ where: { id: versionId, resumeId }, select: { id: true, snapshot: true } });
+    const v = await db.resumeVersion.findFirst({
+      where: { id: versionId, resumeId },
+      select: { id: true, snapshot: true },
+    });
     if (!v) throw new ForbiddenError("NOT_FOUND");
     snapshotSource = v.id;
   }
@@ -48,7 +51,10 @@ export async function createExportJob(
       meta: { resumeId, format, snapshotSource },
     },
   });
-  const { jobRunId } = await enqueue("RESUME_EXPORT", ctx.userId, { type: "RESUME_EXPORT", exportId: exportRow.id });
+  const { jobRunId } = await enqueue("RESUME_EXPORT", ctx.userId, {
+    type: "RESUME_EXPORT",
+    exportId: exportRow.id,
+  });
   return { exportId: exportRow.id, jobRunId };
 }
 
@@ -56,13 +62,27 @@ function extensionFor(format: keyof typeof TYPE_MAP) {
   return format === "text" ? "txt" : format;
 }
 function safeName(n: string) {
-  return (n || "resume").replace(/[^\w \-.]+/g, "").replace(/\s+/g, "-").slice(0, 60) || "resume";
+  return (
+    (n || "resume")
+      .replace(/[^\w \-.]+/g, "")
+      .replace(/\s+/g, "-")
+      .slice(0, 60) || "resume"
+  );
 }
 
 export async function getExport(ctx: Ctx, exportId: string) {
   const row = await db.export.findFirst({
     where: { id: exportId, userId: ctx.userId },
-    select: { id: true, status: true, fileName: true, bytes: true, error: true, type: true, finishedAt: true, createdAt: true },
+    select: {
+      id: true,
+      status: true,
+      fileName: true,
+      bytes: true,
+      error: true,
+      type: true,
+      finishedAt: true,
+      createdAt: true,
+    },
   });
   if (!row) throw new ForbiddenError("NOT_FOUND");
   return {
@@ -81,7 +101,15 @@ export async function listExports(ctx: Ctx, take = 25) {
     where: { userId: ctx.userId },
     orderBy: { createdAt: "desc" },
     take,
-    select: { id: true, type: true, status: true, fileName: true, bytes: true, createdAt: true, error: true },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      fileName: true,
+      bytes: true,
+      createdAt: true,
+      error: true,
+    },
   });
 }
 
@@ -92,7 +120,9 @@ async function renderDocumentFor(doc: ResumeDocument): Promise<RenderDoc> {
   return buildRenderDoc(doc);
 }
 
-async function runExport(exportId: string): Promise<{ storageKey: string; bytes: number; fileName: string }> {
+async function runExport(
+  exportId: string,
+): Promise<{ storageKey: string; bytes: number; fileName: string }> {
   const row = await db.export.findUnique({ where: { id: exportId } });
   if (!row) throw new Error("export row missing");
   await db.export.update({ where: { id: exportId }, data: { status: "PROCESSING" } });
@@ -110,7 +140,10 @@ async function runExport(exportId: string): Promise<{ storageKey: string; bytes:
       });
       if (resume) {
         const { loadResumeDocument } = await import("@/features/resume/repository");
-        const user = await db.careerProfile.findUnique({ where: { id: resume.careerProfileId }, select: { userId: true } });
+        const user = await db.careerProfile.findUnique({
+          where: { id: resume.careerProfileId },
+          select: { userId: true },
+        });
         if (user) doc = (await loadResumeDocument(user.userId, meta.resumeId)).doc;
       }
     }
@@ -134,13 +167,22 @@ async function runExport(exportId: string): Promise<{ storageKey: string; bytes:
     const stored = await store.put(key, data, MIME[row.type] ?? "application/octet-stream");
     await db.export.update({
       where: { id: exportId },
-      data: { status: "READY", storageKey: stored.key, bytes: stored.bytes, finishedAt: new Date(), error: null },
+      data: {
+        status: "READY",
+        storageKey: stored.key,
+        bytes: stored.bytes,
+        finishedAt: new Date(),
+        error: null,
+      },
     });
     return { storageKey: stored.key, bytes: stored.bytes, fileName: row.fileName ?? "resume" };
   } catch (e) {
     const message = String((e as Error)?.message ?? e).slice(0, 300);
     log.error("export failed", { exportId, err: message });
-    await db.export.update({ where: { id: exportId }, data: { status: "FAILED", error: message, finishedAt: new Date() } });
+    await db.export.update({
+      where: { id: exportId },
+      data: { status: "FAILED", error: message, finishedAt: new Date() },
+    });
     throw e; // let the queue retry/backoff; editor stays unaffected (§103)
   }
 }
@@ -164,7 +206,10 @@ async function runAnalyze(versionId: string): Promise<{ score: number }> {
   if (!version) throw new Error("version missing");
   const doc = version.snapshot as unknown as ResumeDocument;
   const stats = computeStats(doc);
-  await db.resumeVersion.update({ where: { id: versionId }, data: { atsScore: stats.score, pageEstimate: Math.ceil(stats.estimatedLines / 46) } });
+  await db.resumeVersion.update({
+    where: { id: versionId },
+    data: { atsScore: stats.score, pageEstimate: Math.ceil(stats.estimatedLines / 46) },
+  });
   return { score: stats.score };
 }
 
@@ -176,13 +221,20 @@ export async function requestAnalysis(ctx: Ctx, resumeId: string): Promise<strin
     select: { id: true },
   });
   if (!version) return null;
-  const { jobRunId } = await enqueue("RESUME_ANALYZE", ctx.userId, { type: "RESUME_ANALYZE", versionId: version.id });
+  const { jobRunId } = await enqueue("RESUME_ANALYZE", ctx.userId, {
+    type: "RESUME_ANALYZE",
+    versionId: version.id,
+  });
   return jobRunId;
 }
 
 /** Ensure latest composition is snapshotted so exports/analysis are stable. */
 export async function snapshotCurrent(ctx: Ctx, resumeId: string, doc: ResumeDocument) {
-  return saveResumeDocument(ctx.userId, resumeId, doc, { mode: "manual", label: "Snapshot", createVersion: true });
+  return saveResumeDocument(ctx.userId, resumeId, doc, {
+    mode: "manual",
+    label: "Snapshot",
+    createVersion: true,
+  });
 }
 
 ensureExportHandlers();

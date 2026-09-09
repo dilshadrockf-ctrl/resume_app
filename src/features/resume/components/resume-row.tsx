@@ -2,14 +2,45 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, Copy, FileText, Globe, GlobeOff, MoreVertical, Pencil, Share2, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  FileText,
+  Globe,
+  GlobeOff,
+  MoreVertical,
+  Pencil,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge, Card } from "@/components/ui/primitives";
-import { ConfirmDialog, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/overlays";
+import {
+  ConfirmDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/overlays";
 import { Field, Input } from "@/components/ui/primitives";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/overlays";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/overlays";
 import { toast } from "@/components/ui/toast";
-import { archiveResumeAction, deleteResumeAction, duplicateResumeAction, publishResumeAction, renameResumeAction, restoreResumeAction } from "@/features/resume/actions";
+import {
+  archiveResumeAction,
+  deleteResumeAction,
+  duplicateResumeAction,
+  publishResumeAction,
+  renameResumeAction,
+  restoreResumeAction,
+} from "@/features/resume/actions";
 import { timeAgo } from "@/lib/utils";
 import type { ResumeListItem } from "@/features/resume/service";
 
@@ -27,7 +58,10 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
           <FileText className="size-4.5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <Link href={`/resumes/${resume.id}`} className="block truncate text-sm font-medium hover:underline">
+          <Link
+            href={`/resumes/${resume.id}`}
+            className="block truncate text-sm font-medium hover:underline"
+          >
             {resume.name}
           </Link>
           <p className="truncate text-xs text-muted-foreground">
@@ -35,7 +69,9 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
           </p>
         </div>
         {resume.published ? (
-          <Badge variant="success" className="hidden sm:inline-flex"><Globe className="size-3" /> Public</Badge>
+          <Badge variant="success" className="hidden sm:inline-flex">
+            <Globe className="size-3" /> Public
+          </Badge>
         ) : null}
         {resume.archivedAt ? <Badge variant="muted">Archived</Badge> : null}
         <div className="flex items-center gap-1">
@@ -44,12 +80,22 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button size="icon-sm" variant="ghost" aria-label={`Actions for ${resume.name}`} disabled={busy}>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label={`Actions for ${resume.name}`}
+                disabled={busy}
+              >
                 <MoreVertical />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52">
-              <DropdownMenuItem onSelect={() => { setName(resume.name); setRenaming(true); }}>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setName(resume.name);
+                  setRenaming(true);
+                }}
+              >
                 <Pencil /> Rename
               </DropdownMenuItem>
               <DropdownMenuItem
@@ -58,7 +104,10 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
                     setBusy(true);
                     const res = await duplicateResumeAction({ resumeId: resume.id });
                     setBusy(false);
-                    if (res.ok) { toast.success("Duplicated"); router.refresh(); } else toast.error(res.error);
+                    if (res.ok) {
+                      toast.success("Duplicated");
+                      router.refresh();
+                    } else toast.error(res.error);
                   })()
                 }
               >
@@ -69,11 +118,16 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
                   onSelect={() =>
                     void (async () => {
                       setBusy(true);
-                      const res = await publishResumeAction({ resumeId: resume.id, published: !resume.published });
+                      const res = await publishResumeAction({
+                        resumeId: resume.id,
+                        published: !resume.published,
+                      });
                       setBusy(false);
                       if (res.ok && res.data.slug) {
                         toast.success(`Public link: ${res.data.url}`);
-                        void navigator.clipboard?.writeText(res.data.url ?? "").catch(() => undefined);
+                        void navigator.clipboard
+                          ?.writeText(res.data.url ?? "")
+                          .catch(() => undefined);
                       } else if (res.ok) {
                         toast.success("Unpublished");
                       } else toast.error(res.error);
@@ -81,7 +135,8 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
                     })()
                   }
                 >
-                  {resume.published ? <GlobeOff /> : <Share2 />} {resume.published ? "Unpublish" : "Publish link"}
+                  {resume.published ? <GlobeOff /> : <Share2 />}{" "}
+                  {resume.published ? "Unpublish" : "Publish link"}
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -152,16 +207,26 @@ export function ResumeRow({ resume }: { resume: ResumeListItem }) {
               }}
             >
               <Field label="Name" htmlFor="rename">
-                <Input id="rename" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
+                <Input
+                  id="rename"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={120}
+                  autoFocus
+                />
               </Field>
               <DialogFooter className="mt-4">
-                <Button type="button" variant="ghost" onClick={() => setRenaming(false)}>Cancel</Button>
-                <Button type="submit" disabled={busy || !name.trim()}>Save</Button>
+                <Button type="button" variant="ghost" onClick={() => setRenaming(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={busy || !name.trim()}>
+                  Save
+                </Button>
               </DialogFooter>
             </form>
           </DialogContent>
         </Dialog>
       </Card>
-      </li>
+    </li>
   );
 }

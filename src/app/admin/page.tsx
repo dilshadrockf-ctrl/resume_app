@@ -22,18 +22,28 @@ export default async function AdminPage() {
     db.export.count(),
     db.jobRun.count(),
     db.jobRun.count({ where: { status: { in: ["FAILED", "DEAD_LETTER"] } } }),
-    db.user.findMany({ orderBy: { createdAt: "desc" }, take: 10, select: { email: true, role: true, createdAt: true, emailVerified: true } }),
+    db.user.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { email: true, role: true, createdAt: true, emailVerified: true },
+    }),
   ]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="mb-6 flex items-center gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <Badge variant="secondary">{env.BILLING_ENABLED ? "billing: on" : "billing disabled"}</Badge>
+        <Badge variant="secondary">
+          {env.BILLING_ENABLED ? "billing: on" : "billing disabled"}
+        </Badge>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {[
-          ["Users", users], ["Resumes", resumes], ["Exports", exports_], ["Jobs", jobs], ["Failed jobs", failed],
+          ["Users", users],
+          ["Resumes", resumes],
+          ["Exports", exports_],
+          ["Jobs", jobs],
+          ["Failed jobs", failed],
         ].map(([label, n]) => (
           <Card key={String(label)}>
             <CardContent className="p-4">
@@ -44,11 +54,16 @@ export default async function AdminPage() {
         ))}
       </div>
       <Card className="mt-6">
-        <CardHeader><CardTitle className="text-sm">Newest accounts</CardTitle></CardHeader>
+        <CardHeader>
+          <CardTitle className="text-sm">Newest accounts</CardTitle>
+        </CardHeader>
         <CardContent>
           <ul className="grid gap-1 text-sm">
             {recent.map((u) => (
-              <li key={u.email} className="flex items-center justify-between rounded-md border px-3 py-1.5">
+              <li
+                key={u.email}
+                className="flex items-center justify-between rounded-md border px-3 py-1.5"
+              >
                 <span>{u.email}</span>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
                   {u.role === "ADMIN" ? <Badge variant="warning">admin</Badge> : null}
@@ -61,7 +76,10 @@ export default async function AdminPage() {
         </CardContent>
       </Card>
       <p className="mt-4 text-xs text-muted-foreground">
-        User management actions are deliberately absent until there are real multi-tenant needs. <Link className="text-primary underline" href="/diagnostics">Diagnostics →</Link>
+        User management actions are deliberately absent until there are real multi-tenant needs.{" "}
+        <Link className="text-primary underline" href="/diagnostics">
+          Diagnostics →
+        </Link>
       </p>
     </div>
   );

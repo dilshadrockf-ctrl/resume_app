@@ -1,4 +1,12 @@
-import { CreateBucketCommand, DeleteObjectCommand, GetObjectCommand, HeadBucketCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  CreateBucketCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync } from "node:fs";
@@ -27,7 +35,9 @@ export interface StorageProvider {
   put(key: string, data: Buffer | Uint8Array, contentType: string): Promise<StoredFile>;
   get(key: string): Promise<{ stream: Buffer; contentType: string; bytes: number } | null>;
   /** Stream to an HTTP response body without buffering whole file when possible. */
-  open(key: string): Promise<{ body: ReadableStream<Uint8Array>; contentType: string; bytes: number } | null>;
+  open(
+    key: string,
+  ): Promise<{ body: ReadableStream<Uint8Array>; contentType: string; bytes: number } | null>;
   delete(key: string): Promise<void>;
   exists(key: string): Promise<boolean>;
   presignDownload(key: string, filename: string, ttlSeconds: number): Promise<string | null>;
@@ -106,7 +116,10 @@ class MinIOStorage implements StorageProvider {
       region: env.S3_REGION,
       endpoint: env.S3_ENDPOINT,
       forcePathStyle: true,
-      credentials: env.S3_ACCESS_KEY && env.S3_SECRET_KEY ? { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY } : undefined,
+      credentials:
+        env.S3_ACCESS_KEY && env.S3_SECRET_KEY
+          ? { accessKeyId: env.S3_ACCESS_KEY, secretAccessKey: env.S3_SECRET_KEY }
+          : undefined,
     });
   }
 
@@ -148,14 +161,20 @@ class MinIOStorage implements StorageProvider {
       const res = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
       if (!res.Body) return null;
       const web = res.Body.transformToWebStream();
-      return { body: web as ReadableStream<Uint8Array>, contentType: res.ContentType ?? guessType(key), bytes: res.ContentLength ?? 0 };
+      return {
+        body: web as ReadableStream<Uint8Array>,
+        contentType: res.ContentType ?? guessType(key),
+        bytes: res.ContentLength ?? 0,
+      };
     } catch {
       return null;
     }
   }
 
   async delete(key: string) {
-    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key })).catch(() => undefined);
+    await this.client
+      .send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
+      .catch(() => undefined);
   }
 
   async exists(key: string) {
@@ -171,7 +190,11 @@ class MinIOStorage implements StorageProvider {
     try {
       return await getSignedUrl(
         this.client,
-        new GetObjectCommand({ Bucket: this.bucket, Key: key, ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, "")}"` }),
+        new GetObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          ResponseContentDisposition: `attachment; filename="${filename.replace(/"/g, "")}"`,
+        }),
         { expiresIn: ttlSeconds },
       );
     } catch {
@@ -190,7 +213,8 @@ function sha256(buf: Buffer): string {
 
 function guessType(key: string): string {
   if (key.endsWith(".pdf")) return "application/pdf";
-  if (key.endsWith(".docx")) return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  if (key.endsWith(".docx"))
+    return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
   if (key.endsWith(".txt")) return "text/plain";
   if (key.endsWith(".json")) return "application/json";
   if (key.endsWith(".png")) return "image/png";
@@ -203,7 +227,8 @@ let probing = false;
 let probePromise: Promise<StorageProvider> | null = null;
 
 async function probe(): Promise<StorageProvider> {
-  const wantMinio = env.STORAGE_DRIVER === "minio" || (env.STORAGE_DRIVER === "auto" && Boolean(env.S3_ENDPOINT));
+  const wantMinio =
+    env.STORAGE_DRIVER === "minio" || (env.STORAGE_DRIVER === "auto" && Boolean(env.S3_ENDPOINT));
   if (wantMinio) {
     try {
       const s = new MinIOStorage();
@@ -212,7 +237,9 @@ async function probe(): Promise<StorageProvider> {
       return s;
     } catch (e) {
       if (env.STORAGE_DRIVER === "minio") throw e; // explicit request → fail loudly
-      log.warn("storage: minio unreachable, falling back to filesystem", { err: String((e as Error).message).slice(0, 140) });
+      log.warn("storage: minio unreachable, falling back to filesystem", {
+        err: String((e as Error).message).slice(0, 140),
+      });
     }
   }
   return new FilesystemStorage(env.FILESYSTEM_STORAGE_DIR);
@@ -235,13 +262,24 @@ export async function storage(): Promise<StorageProvider> {
 }
 
 export function storageStatus(): { ok: boolean; driver: string; detail: string } {
-  if (provider) return { ok: true, driver: provider.name, detail: provider.name === "minio" ? `S3 endpoint ${env.S3_ENDPOINT} bucket ${env.S3_BUCKET}` : env.FILESYSTEM_STORAGE_DIR };
+  if (provider)
+    return {
+      ok: true,
+      driver: provider.name,
+      detail:
+        provider.name === "minio"
+          ? `S3 endpoint ${env.S3_ENDPOINT} bucket ${env.S3_BUCKET}`
+          : env.FILESYSTEM_STORAGE_DIR,
+    };
   void probing;
-  return { ok: false, driver: env.STORAGE_DRIVER, detail: "not yet initialized (initializes on first use)" };
+  return {
+    ok: false,
+    driver: env.STORAGE_DRIVER,
+    detail: "not yet initialized (initializes on first use)",
+  };
 }
 
 export function resetStorageCacheForTests() {
   provider = null;
   probePromise = null;
 }
-

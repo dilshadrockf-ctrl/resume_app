@@ -30,7 +30,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   let authorized = false;
   if (token && row.downloadTokenHash) {
     const { hashToken, tokensEqual } = await import("@/lib/tokens");
-    authorized = tokensEqual(hashToken(token), row.downloadTokenHash) && Boolean(row.downloadExpiresAt && row.downloadExpiresAt > new Date());
+    authorized =
+      tokensEqual(hashToken(token), row.downloadTokenHash) &&
+      Boolean(row.downloadExpiresAt && row.downloadExpiresAt > new Date());
   }
   if (!authorized) {
     const session = await auth();

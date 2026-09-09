@@ -15,7 +15,11 @@ export function cssFontStack(family: FontFamily): string {
   }
 }
 
-export function pdfFontKey(family: "inter" | "lora" | "mono", bold: boolean, italic: boolean): PdfFontKey {
+export function pdfFontKey(
+  family: "inter" | "lora" | "mono",
+  bold: boolean,
+  italic: boolean,
+): PdfFontKey {
   const fam = family === "lora" ? "Lora" : family === "mono" ? "JetBrainsMono" : "Inter";
   const weight = bold ? "700" : "400";
   return `${fam}/${weight}-${italic ? "italic" : "normal"}`;

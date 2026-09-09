@@ -8,7 +8,10 @@ import type { RenderDoc, Run } from "@/templates/blocks";
  */
 
 function runsText(runs: Run[]): string {
-  return runs.map((r) => r.text).join("").replace(/\s+$/g, "");
+  return runs
+    .map((r) => r.text)
+    .join("")
+    .replace(/\s+$/g, "");
 }
 
 export function renderAtsText(render: RenderDoc): string {
@@ -58,5 +61,10 @@ export function renderAtsText(render: RenderDoc): string {
     out.push("", "---- SIDEBAR (appears after main column in linear order) ----");
     emitSections(render.rail);
   }
-  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+  return (
+    out
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim() + "\n"
+  );
 }

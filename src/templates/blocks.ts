@@ -30,7 +30,13 @@ export interface Run {
 }
 
 export type Block =
-  | { type: "paragraph"; runs: Run[]; align?: "left" | "center"; spaceBefore?: number; spaceAfter?: number }
+  | {
+      type: "paragraph";
+      runs: Run[];
+      align?: "left" | "center";
+      spaceBefore?: number;
+      spaceAfter?: number;
+    }
   | { type: "entry"; block: EntryBlock }
   | { type: "skill-group"; label: string; items: string[] }
   | { type: "bullet-list"; items: Run[][] }
@@ -111,7 +117,10 @@ function style(doc: ResumeDocument, def: TemplateDefinition, config: TemplateCon
     spacing,
     contentWidth: round2(margin.w - 2 * (marginBase / config.marginScale)),
     page: margin,
-    marginPt: { x: round2(marginBase / config.marginScale), y: round2(marginBase / config.marginScale) },
+    marginPt: {
+      x: round2(marginBase / config.marginScale),
+      y: round2(marginBase / config.marginScale),
+    },
   };
 }
 
@@ -145,12 +154,15 @@ function maybeUrl(v?: string): string | undefined {
   return undefined;
 }
 
-function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof style>): {
+function runsFor(
+  item: SectionItem,
+  config: TemplateConfig,
+  s: ReturnType<typeof style>,
+): {
   entry: EntryBlock;
   keywords: string[];
 } {
-  const dateFmt =
-    s.layout.datePlacement === "below" ? "below" : ("right" as const);
+  const dateFmt = s.layout.datePlacement === "below" ? "below" : ("right" as const);
   const kw: string[] = [];
   switch (item.kind) {
     case "experience": {
@@ -161,7 +173,11 @@ function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof
           ? [{ text: title, bold: true }, { text: `, ${employer}` }]
           : [{ text: employer, bold: true }, { text: `, ${title}` }];
       const range = formatRange(cleanDate(item.startDate), cleanDate(item.endDate), item.current);
-      const months = monthsBetween(cleanDate(item.startDate), cleanDate(item.endDate), item.current);
+      const months = monthsBetween(
+        cleanDate(item.startDate),
+        cleanDate(item.endDate),
+        item.current,
+      );
       const secondary: Run[] = [];
       if (item.location) secondary.push({ text: item.location });
       if (typeLabel(item.employmentType) && item.employmentType !== "FULL_TIME") {
@@ -178,14 +194,18 @@ function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof
           right: range || undefined,
           rightSub: item.location && dateFmt === "below" ? item.location : undefined,
           paragraphs: item.description ? [[{ text: item.description }]] : [],
-          bullets: [...(item.bullets ?? []), ...(item.achievements ?? [])].map((b) => [{ text: b }]),
+          bullets: [...(item.bullets ?? []), ...(item.achievements ?? [])].map((b) => [
+            { text: b },
+          ]),
           tags: item.technologies?.length ? `Tech: ${item.technologies.join(", ")}` : undefined,
         },
         keywords: kw,
       };
     }
     case "education": {
-      const left: Run[] = [{ text: item.institution, bold: s.layout.entryTitleFormat !== "employer-title" }];
+      const left: Run[] = [
+        { text: item.institution, bold: s.layout.entryTitleFormat !== "employer-title" },
+      ];
       if (!left[0]!.bold) left[0]!.bold = true;
       const degree = [item.degree, item.field].filter(Boolean).join(" in ");
       if (degree) {
@@ -203,8 +223,10 @@ function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof
         secondary.push({ text: item.honors, italic: true });
       }
       const bullets: Run[][] = [];
-      if (item.coursework?.length) bullets.push([{ text: `Coursework: `, bold: true }, { text: item.coursework.join(", ") }]);
-      if (item.activities?.length) bullets.push([{ text: `Activities: `, bold: true }, { text: item.activities.join(", ") }]);
+      if (item.coursework?.length)
+        bullets.push([{ text: `Coursework: `, bold: true }, { text: item.coursework.join(", ") }]);
+      if (item.activities?.length)
+        bullets.push([{ text: `Activities: `, bold: true }, { text: item.activities.join(", ") }]);
       return {
         entry: {
           left,
@@ -264,7 +286,10 @@ function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof
       };
     }
     case "publication": {
-      const left: Run[] = [{ text: item.authors?.length ? `${item.authors.join(", ")}. ` : "" }, { text: `"${item.title}."`, bold: true }];
+      const left: Run[] = [
+        { text: item.authors?.length ? `${item.authors.join(", ")}. ` : "" },
+        { text: `"${item.title}."`, bold: true },
+      ];
       if (item.publisher) left.push({ text: ` ${item.publisher}.` });
       if (item.date) left.push({ text: ` (${item.date.slice(0, 4)}).` });
       return {
@@ -308,7 +333,13 @@ function runsFor(item: SectionItem, config: TemplateConfig, s: ReturnType<typeof
     }
     default:
       return {
-        entry: { left: [], paragraphs: (item as unknown as { description?: string }).description ? [[{ text: String((item as unknown as { description?: string }).description) }]] : [], bullets: [] },
+        entry: {
+          left: [],
+          paragraphs: (item as unknown as { description?: string }).description
+            ? [[{ text: String((item as unknown as { description?: string }).description) }]]
+            : [],
+          bullets: [],
+        },
         keywords: [],
       };
   }
@@ -327,14 +358,19 @@ function typeLabel(t: string): string {
     .replace("Bounded Volunteer", "Volunteer");
 }
 
-export function buildRenderDoc(doc: ResumeDocument, overrides?: Partial<TemplateConfig>): RenderDoc {
+export function buildRenderDoc(
+  doc: ResumeDocument,
+  overrides?: Partial<TemplateConfig>,
+): RenderDoc {
   const def = getTemplate(doc.meta.templateId);
   const config = { ...def.defaultConfig, ...doc.meta.config, ...overrides } as TemplateConfig;
   const s = style(doc, def, config);
   const { layout, headingCase } = s;
   const accent = config.atsSafe || def.ats === "excellent" ? "#111827" : config.accentColor;
 
-  const contactList = contactRuns(doc.contact, s).map((r) => ({ ...r, size: s.size(config.fontSize * 0.92) }) as Run);
+  const contactList = contactRuns(doc.contact, s).map(
+    (r) => ({ ...r, size: s.size(config.fontSize * 0.92) }) as Run,
+  );
   const headline = doc.contact.headline?.trim()
     ? [
         {
@@ -370,7 +406,9 @@ export function buildRenderDoc(doc: ResumeDocument, overrides?: Partial<Template
     if (visibleItems.length === 0 && section.kind !== "SUMMARY") continue;
     const blocks: Block[] = [];
     if (section.kind === "SKILLS") {
-      const skills = visibleItems.filter((i): i is Extract<SectionItem, { kind: "skill" }> => i.kind === "skill");
+      const skills = visibleItems.filter(
+        (i): i is Extract<SectionItem, { kind: "skill" }> => i.kind === "skill",
+      );
       const fmt = config.atsSafe ? "grouped-inline" : config.skillFormat;
       if (fmt === "inline") {
         blocks.push({
@@ -386,7 +424,11 @@ export function buildRenderDoc(doc: ResumeDocument, overrides?: Partial<Template
         }
         for (const [label, items] of groups) {
           if (fmt === "grouped-lines") {
-            blocks.push({ type: "paragraph", runs: [{ text: `${label}: `, bold: true }, { text: items.join(", ") }], spaceAfter: 1 });
+            blocks.push({
+              type: "paragraph",
+              runs: [{ text: `${label}: `, bold: true }, { text: items.join(", ") }],
+              spaceAfter: 1,
+            });
           } else {
             blocks.push({ type: "skill-group", label, items });
           }
@@ -429,7 +471,13 @@ export function buildRenderDoc(doc: ResumeDocument, overrides?: Partial<Template
     main,
     rail,
     columns: config.atsSafe ? 1 : layout.columns,
-    railBg: config.atsSafe ? null : layout.columns === 2 && rail.length > 0 ? (layout.header === "banner" ? "#f3f4f6" : "#f9fafb") : null,
+    railBg: config.atsSafe
+      ? null
+      : layout.columns === 2 && rail.length > 0
+        ? layout.header === "banner"
+          ? "#f3f4f6"
+          : "#f9fafb"
+        : null,
     headingAlign: config.headingAlign === "center" && layout.columns === 1 ? "center" : "left",
     stats: computeStats(doc),
   };

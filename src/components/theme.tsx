@@ -4,20 +4,32 @@ import * as React from "react";
 type Theme = "light" | "dark" | "system";
 export type { Theme };
 
-const ThemeCtx = React.createContext<{ theme: Theme; setTheme: (t: Theme) => void; resolved: "light" | "dark" }>({
+const ThemeCtx = React.createContext<{
+  theme: Theme;
+  setTheme: (t: Theme) => void;
+  resolved: "light" | "dark";
+}>({
   theme: "system",
   setTheme: () => {},
   resolved: "light",
 });
 
-export function ThemeProvider({ children, initial = "system" }: { children: React.ReactNode; initial?: Theme }) {
+export function ThemeProvider({
+  children,
+  initial = "system",
+}: {
+  children: React.ReactNode;
+  initial?: Theme;
+}) {
   const [theme, setThemeState] = React.useState<Theme>(initial);
   const [resolved, setResolved] = React.useState<"light" | "dark">("light");
 
   React.useEffect(() => {
     const apply = (t: Theme) => {
       const root = document.documentElement;
-      const isDark = t === "dark" || (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      const isDark =
+        t === "dark" ||
+        (t === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
       root.classList.toggle("dark", isDark);
       setResolved(isDark ? "dark" : "light");
     };
@@ -37,7 +49,11 @@ export function ThemeProvider({ children, initial = "system" }: { children: Reac
     } catch {
       /* private mode */
     }
-    void fetch("/api/theme", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ theme: t }) }).catch(() => undefined);
+    void fetch("/api/theme", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ theme: t }),
+    }).catch(() => undefined);
   }, []);
 
   return <ThemeCtx value={{ theme, setTheme, resolved }}>{children}</ThemeCtx>;
@@ -46,4 +62,3 @@ export function ThemeProvider({ children, initial = "system" }: { children: Reac
 export function useTheme() {
   return React.useContext(ThemeCtx);
 }
-

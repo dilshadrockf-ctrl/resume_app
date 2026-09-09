@@ -66,7 +66,9 @@ export async function enqueue(
       await db.jobRun.update({ where: { id: jobRun.id }, data: { status: "QUEUED" } });
       return { jobRunId: jobRun.id, mode: "bullmq" };
     } catch (e) {
-      log.warn("queue: bullmq enqueue failed — running in-process", { err: String((e as Error).message).slice(0, 120) });
+      log.warn("queue: bullmq enqueue failed — running in-process", {
+        err: String((e as Error).message).slice(0, 120),
+      });
     }
   }
   if (useInProcessOnly()) {
@@ -95,12 +97,20 @@ export async function runJobRunLocally(jobRunId: string): Promise<void> {
     });
     return;
   }
-  await db.jobRun.update({ where: { id: jobRunId }, data: { status: "ACTIVE", startedAt: new Date(), attempts: { increment: 1 } } });
+  await db.jobRun.update({
+    where: { id: jobRunId },
+    data: { status: "ACTIVE", startedAt: new Date(), attempts: { increment: 1 } },
+  });
   try {
     const result = await handler(jobRun.payload as JobPayload, jobRun.id);
     await db.jobRun.update({
       where: { id: jobRunId },
-      data: { status: "COMPLETED", result: (result ?? null) as never, finishedAt: new Date(), error: null },
+      data: {
+        status: "COMPLETED",
+        result: (result ?? null) as never,
+        finishedAt: new Date(),
+        error: null,
+      },
     });
   } catch (e) {
     const message = String((e as Error)?.message ?? e).slice(0, 500);
@@ -110,11 +120,17 @@ export async function runJobRunLocally(jobRunId: string): Promise<void> {
     if (attempts < max) {
       const delay = BACKOFF_BASE_MS * 2 ** (attempts - 1);
       log.warn("job failed — retry scheduled", { jobRunId, attempts, delayMs: delay });
-      await db.jobRun.update({ where: { id: jobRunId }, data: { status: "QUEUED", lastError: message } });
+      await db.jobRun.update({
+        where: { id: jobRunId },
+        data: { status: "QUEUED", lastError: message },
+      });
       setTimeout(() => void runJobRunLocally(jobRunId), Math.min(delay, 30_000)).unref?.();
     } else {
       log.error("job failed permanently — dead letter", { jobRunId, err: message });
-      await db.jobRun.update({ where: { id: jobRunId }, data: { status: "DEAD_LETTER", error: message, lastError: message, finishedAt: new Date() } });
+      await db.jobRun.update({
+        where: { id: jobRunId },
+        data: { status: "DEAD_LETTER", error: message, lastError: message, finishedAt: new Date() },
+      });
     }
   }
 }
@@ -124,7 +140,14 @@ export async function startWorkerLoop(onTick?: () => void): Promise<() => Promis
   const redis = await getRedis();
   if (!redis) throw new Error("BullMQ worker requires REDIS_URL");
   const { Worker } = await import("bullmq");
-  const names: QueueName[] = ["RESUME_IMPORT", "RESUME_EXPORT", "RESUME_ANALYZE", "AI_GENERATE", "COVER_LETTER_GENERATE", "ACCOUNT_DATA_EXPORT"];
+  const names: QueueName[] = [
+    "RESUME_IMPORT",
+    "RESUME_EXPORT",
+    "RESUME_ANALYZE",
+    "AI_GENERATE",
+    "COVER_LETTER_GENERATE",
+    "ACCOUNT_DATA_EXPORT",
+  ];
   const workers = await Promise.all(
     names.map(async (name) => {
       const w = new Worker(
@@ -133,10 +156,23 @@ export async function startWorkerLoop(onTick?: () => void): Promise<() => Promis
           const handler = handlers.get(name);
           if (!handler) throw new Error(`no handler for ${name}`);
           const jobRunId = String(job.id ?? "");
-          await db.jobRun.update({ where: { id: jobRunId }, data: { status: "ACTIVE", startedAt: new Date(), attempts: { increment: 1 } } }).catch(() => undefined);
+          await db.jobRun
+            .update({
+              where: { id: jobRunId },
+              data: { status: "ACTIVE", startedAt: new Date(), attempts: { increment: 1 } },
+            })
+            .catch(() => undefined);
           const result = await handler(job.data as JobPayload, jobRunId);
           await db.jobRun
-            .update({ where: { id: jobRunId }, data: { status: "COMPLETED", result: (result ?? null) as never, finishedAt: new Date(), error: null } })
+            .update({
+              where: { id: jobRunId },
+              data: {
+                status: "COMPLETED",
+                result: (result ?? null) as never,
+                finishedAt: new Date(),
+                error: null,
+              },
+            })
             .catch(() => undefined);
           return result ?? null;
         },
@@ -145,14 +181,23 @@ export async function startWorkerLoop(onTick?: () => void): Promise<() => Promis
       w.on("failed", (job, err) => {
         const attempts = job?.attemptsMade ?? 0;
         const max = job?.opts?.attempts ?? 3;
-        log.error("worker job failed", { queue: name, attemptsMade: attempts, max, err: String(err?.message).slice(0, 200) });
+        log.error("worker job failed", {
+          queue: name,
+          attemptsMade: attempts,
+          max,
+          err: String(err?.message).slice(0, 200),
+        });
         db.jobRun
           .update({
             where: { id: String(job?.id ?? "") },
             data: {
               lastError: String(err?.message ?? "failed").slice(0, 500),
               ...(attempts + 1 >= max
-                ? { status: "DEAD_LETTER" as const, error: String(err?.message ?? "failed").slice(0, 500), finishedAt: new Date() }
+                ? {
+                    status: "DEAD_LETTER" as const,
+                    error: String(err?.message ?? "failed").slice(0, 500),
+                    finishedAt: new Date(),
+                  }
                 : { status: "QUEUED" as const }),
             },
           })

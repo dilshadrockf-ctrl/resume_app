@@ -27,7 +27,9 @@ function runStyle(run: PlacedRun, px: number): string {
   const [weight] = variant.split("-");
   const italic = variant.includes("italic") || run.italic;
   const key = (family ?? "Inter").toLowerCase();
-  const stack = cssFontStack((key === "lora" || key === "mono" ? key : "inter") as "inter" | "lora" | "mono");
+  const stack = cssFontStack(
+    (key === "lora" || key === "mono" ? key : "inter") as "inter" | "lora" | "mono",
+  );
   const parts = [
     `font-family:${stack}`,
     `font-size:${(run.size * px).toFixed(2)}px`,

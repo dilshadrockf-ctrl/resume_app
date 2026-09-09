@@ -8,7 +8,10 @@ import { TooltipProvider } from "@/components/ui/overlays";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
-  title: { default: "ResumeForge — AI Resume Builder & ATS Optimizer", template: "%s · ResumeForge" },
+  title: {
+    default: "ResumeForge — AI Resume Builder & ATS Optimizer",
+    template: "%s · ResumeForge",
+  },
   description:
     "Build an ATS-ready resume with AI that never invents facts. Tailor to any job description, generate PDF/DOCX, and track every application — self-hostable, private by default.",
   metadataBase: new URL(env.NEXT_PUBLIC_APP_URL),
@@ -30,7 +33,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en" suppressHydrationWarning className={theme === "dark" ? "dark" : undefined}>
       <body className="min-h-dvh bg-background text-foreground antialiased">
-        <a className="skip-link" href="#main">Skip to content</a>
+        <a className="skip-link" href="#main">
+          Skip to content
+        </a>
         <ThemeProvider initial={theme}>
           <TooltipProvider delayDuration={350}>{children}</TooltipProvider>
         </ThemeProvider>

@@ -8,12 +8,32 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const AUTH_COOKIE_NAMES = ["authjs.session-token", "__Secure-authjs.session-token"];
 const PUBLIC_PREFIXES = [
-  "/", "/login", "/register", "/forgot-password", "/reset-password", "/verify-email",
-  "/api/auth", "/api/health", "/health", "/resume/", "/api/og",
+  "/",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+  "/verify-email",
+  "/api/auth",
+  "/api/health",
+  "/health",
+  "/resume/",
+  "/api/og",
 ];
 const PROTECTED_PREFIXES = [
-  "/dashboard", "/resumes", "/profile", "/jobs", "/applications", "/cover-letters",
-  "/templates", "/coach", "/settings", "/api/uploads", "/api/ai", "/api/files", "/api/internal",
+  "/dashboard",
+  "/resumes",
+  "/profile",
+  "/jobs",
+  "/applications",
+  "/cover-letters",
+  "/templates",
+  "/coach",
+  "/settings",
+  "/api/uploads",
+  "/api/ai",
+  "/api/files",
+  "/api/internal",
 ];
 
 function isProtected(pathname: string): boolean {
@@ -33,8 +53,14 @@ export function middleware(req: NextRequest) {
       try {
         const host = req.nextUrl.host;
         const proto = req.nextUrl.protocol.replace(":", "");
-        const allowed = new Set([`${proto}://${host}`, process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? ""]);
-        const trusted = (process.env.TRUSTED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+        const allowed = new Set([
+          `${proto}://${host}`,
+          process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "",
+        ]);
+        const trusted = (process.env.TRUSTED_ORIGINS ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
         for (const t of trusted) allowed.add(t);
         if (!allowed.has(origin) && !origin.endsWith(".e2b.app")) {
           return NextResponse.json({ error: "Bad origin" }, { status: 403 });

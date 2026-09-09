@@ -25,7 +25,11 @@ import type { Block, RenderDoc, Run } from "@/templates/blocks";
 const ptToTwip = (pt: number) => Math.round(pt * 20);
 
 function fontName(render: RenderDoc): string {
-  return render.baseFont === "lora" ? "Lora" : render.baseFont === "mono" ? "JetBrains Mono" : "Inter";
+  return render.baseFont === "lora"
+    ? "Lora"
+    : render.baseFont === "mono"
+      ? "JetBrains Mono"
+      : "Inter";
 }
 
 function runOpts(render: RenderDoc, r: Run, base: Partial<IRunOptions> = {}): IRunOptions {
@@ -58,7 +62,11 @@ function runsToChildren(render: RenderDoc, runs: Run[]): (TextRun | ExternalHype
 }
 
 function para(render: RenderDoc, runs: Run[], opts: IParagraphOptions = {}): Paragraph {
-  return new Paragraph({ children: runsToChildren(render, runs), spacing: { after: 40, line: Math.round(render.lineHeight * 20) }, ...opts });
+  return new Paragraph({
+    children: runsToChildren(render, runs),
+    spacing: { after: 40, line: Math.round(render.lineHeight * 20) },
+    ...opts,
+  });
 }
 
 export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
@@ -70,15 +78,37 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
     children.push(
       new Paragraph({
         alignment: h.align === "center" ? AlignmentType.CENTER : AlignmentType.LEFT,
-        children: [new TextRun({ text: h.name, bold: true, size: ptToTwip(render.fontSize * 2 * 2), color: render.textColor.replace("#", ""), font: fontName(render) })],
+        children: [
+          new TextRun({
+            text: h.name,
+            bold: true,
+            size: ptToTwip(render.fontSize * 2 * 2),
+            color: render.textColor.replace("#", ""),
+            font: fontName(render),
+          }),
+        ],
         spacing: { after: 40 },
       }),
     );
     if (h.headlineRuns?.length) {
-      children.push(para(render, h.headlineRuns, { alignment: h.align === "center" ? AlignmentType.CENTER : undefined, spacing: { after: 20 } }));
+      children.push(
+        para(render, h.headlineRuns, {
+          alignment: h.align === "center" ? AlignmentType.CENTER : undefined,
+          spacing: { after: 20 },
+        }),
+      );
     }
     if (h.contactRuns.length) {
-      children.push(para(render, h.contactRuns, { alignment: h.align === "center" ? AlignmentType.CENTER : undefined, spacing: { after: 120 }, border: h.variant !== "banner" ? { bottom: { color: accent, space: 6, style: BorderStyle.SINGLE, size: 8 } } : undefined }));
+      children.push(
+        para(render, h.contactRuns, {
+          alignment: h.align === "center" ? AlignmentType.CENTER : undefined,
+          spacing: { after: 120 },
+          border:
+            h.variant !== "banner"
+              ? { bottom: { color: accent, space: 6, style: BorderStyle.SINGLE, size: 8 } }
+              : undefined,
+        }),
+      );
     }
   }
 
@@ -90,8 +120,23 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
         border:
           render.layout.headingRule === "space"
             ? undefined
-            : { bottom: { color: render.layout.headingRule === "rule" ? "9CA3AF" : accent, space: 2, style: BorderStyle.SINGLE, size: render.layout.headingRule === "bar" ? 12 : 6 } },
-        children: [new TextRun({ text: sec.title, bold: true, color: accent, size: ptToTwip(render.fontSize * render.layout.headingSizeScale * 2), font: fontName(render) })],
+            : {
+                bottom: {
+                  color: render.layout.headingRule === "rule" ? "9CA3AF" : accent,
+                  space: 2,
+                  style: BorderStyle.SINGLE,
+                  size: render.layout.headingRule === "bar" ? 12 : 6,
+                },
+              },
+        children: [
+          new TextRun({
+            text: sec.title,
+            bold: true,
+            color: accent,
+            size: ptToTwip(render.fontSize * render.layout.headingSizeScale * 2),
+            font: fontName(render),
+          }),
+        ],
       }),
     );
     for (const b of sec.blocks) emitBlock(b);
@@ -104,7 +149,9 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
         break;
       case "skill-group":
         children.push(
-          para(render, [{ text: `${b.label}: `, bold: true }, { text: b.items.join(", ") }], { spacing: { after: 20 } }),
+          para(render, [{ text: `${b.label}: `, bold: true }, { text: b.items.join(", ") }], {
+            spacing: { after: 20 },
+          }),
         );
         break;
       case "bullet-list":
@@ -127,19 +174,31 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
             children: runsToChildren(render, runs),
             tabStops: [{ type: TabStopType.RIGHT, position: TabStopPosition.MAX }],
             spacing: { before: 60, after: 20 },
-            ...(render.layout.columns === 2 ? { shading: { type: ShadingType.SOLID, color: "FFFFFF", fill: "FFFFFF" } } : {}),
+            ...(render.layout.columns === 2
+              ? { shading: { type: ShadingType.SOLID, color: "FFFFFF", fill: "FFFFFF" } }
+              : {}),
           }),
         );
-        if (e.secondary?.length) children.push(para(render, e.secondary, { spacing: { after: 20 } }));
+        if (e.secondary?.length)
+          children.push(para(render, e.secondary, { spacing: { after: 20 } }));
         for (const p of e.paragraphs) children.push(para(render, p, { spacing: { after: 20 } }));
         if (e.bullets.length) {
           for (const bl of e.bullets) {
             children.push(
-              new Paragraph({ children: runsToChildren(render, bl), bullet: { level: 0 }, spacing: { after: 20, line: Math.round(render.lineHeight * 20) } }),
+              new Paragraph({
+                children: runsToChildren(render, bl),
+                bullet: { level: 0 },
+                spacing: { after: 20, line: Math.round(render.lineHeight * 20) },
+              }),
             );
           }
         }
-        if (e.tags) children.push(para(render, [{ text: e.tags, color: "#6B7280", italic: true }], { spacing: { after: 40 } }));
+        if (e.tags)
+          children.push(
+            para(render, [{ text: e.tags, color: "#6B7280", italic: true }], {
+              spacing: { after: 40 },
+            }),
+          );
         break;
       }
       case "spacer":
@@ -152,7 +211,14 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
         spacing: { before: 120, after: 60 },
-        children: [new TextRun({ text: "PROFESSIONAL SUMMARY", bold: true, color: accent, font: fontName(render) })],
+        children: [
+          new TextRun({
+            text: "PROFESSIONAL SUMMARY",
+            bold: true,
+            color: accent,
+            font: fontName(render),
+          }),
+        ],
       }),
     );
     for (const p of render.summaryRuns) children.push(para(render, p));
@@ -165,17 +231,30 @@ export function buildDocx(render: RenderDoc): Promise<Uint8Array> {
     title: "Resume",
     styles: {
       default: {
-        document: { run: { font: fontName(render), size: ptToTwip(render.fontSize * 2), color: render.textColor.replace("#", "") } },
+        document: {
+          run: {
+            font: fontName(render),
+            size: ptToTwip(render.fontSize * 2),
+            color: render.textColor.replace("#", ""),
+          },
+        },
       },
       paragraphStyles: [
-        { id: "Normal", name: "Normal", run: { font: fontName(render), size: ptToTwip(render.fontSize * 2) } },
+        {
+          id: "Normal",
+          name: "Normal",
+          run: { font: fontName(render), size: ptToTwip(render.fontSize * 2) },
+        },
       ],
     },
-  sections: [
+    sections: [
       {
         properties: {
           page: {
-            size: render.paperSize === "A4" ? { width: 11906, height: 16838 } : { width: 12240, height: 15840 },
+            size:
+              render.paperSize === "A4"
+                ? { width: 11906, height: 16838 }
+                : { width: 12240, height: 15840 },
             margin: {
               top: ptToTwip(render.marginPt.y),
               bottom: ptToTwip(render.marginPt.y),

@@ -43,23 +43,55 @@ export function RegisterForm() {
         </p>
         <form onSubmit={onSubmit} className="mt-6 grid gap-4" noValidate>
           <Field label="Full name" htmlFor="name" error={fieldErrors.name}>
-            <Input id="name" autoComplete="name" required value={name} onChange={(e) => setName(e.target.value)} />
+            <Input
+              id="name"
+              autoComplete="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </Field>
           <Field label="Email" htmlFor="email" error={fieldErrors.email}>
-            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </Field>
-          <Field label="Password" htmlFor="password" error={fieldErrors.password} hint="At least 10 characters.">
-            <Input id="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Field
+            label="Password"
+            htmlFor="password"
+            error={fieldErrors.password}
+            hint="At least 10 characters."
+          >
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </Field>
           {error ? (
-            <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+            <p
+              role="alert"
+              className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {error}
+            </p>
           ) : null}
           <Button type="submit" disabled={busy} className="mt-1">
             {busy ? <Spinner /> : null} Create account
           </Button>
           <p className="text-center text-sm text-muted-foreground">
             Already have an account?{" "}
-            <Link href="/login" className="font-medium text-primary hover:underline">Sign in</Link>
+            <Link href="/login" className="font-medium text-primary hover:underline">
+              Sign in
+            </Link>
           </p>
         </form>
       </CardContent>

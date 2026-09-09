@@ -45,7 +45,9 @@ function replaceSection(doc: ResumeDocument, next: ResumeSectionDoc): ResumeDocu
   const exists = doc.sections.some((s) => s.kind === next.kind);
   return {
     ...doc,
-    sections: exists ? doc.sections.map((s) => (s.kind === next.kind ? next : s)) : [...doc.sections, next],
+    sections: exists
+      ? doc.sections.map((s) => (s.kind === next.kind ? next : s))
+      : [...doc.sections, next],
   };
 }
 
@@ -56,23 +58,41 @@ export function updateItem(
   patch: Partial<SectionItem>,
 ): ResumeDocument {
   const section = sectionFor(doc, sectionKind);
-  const items = section.items.map((it, i) => (i === index ? ({ ...it, ...patch } as SectionItem) : it));
+  const items = section.items.map((it, i) =>
+    i === index ? ({ ...it, ...patch } as SectionItem) : it,
+  );
   return replaceSection(doc, { ...section, items });
 }
 
-export function removeItem(doc: ResumeDocument, sectionKind: SectionKind, index: number): ResumeDocument {
+export function removeItem(
+  doc: ResumeDocument,
+  sectionKind: SectionKind,
+  index: number,
+): ResumeDocument {
   const section = sectionFor(doc, sectionKind);
   const items = section.items.filter((_, i) => i !== index);
   return replaceSection(doc, { ...section, items: reindex(items) });
 }
 
-export function addItem(doc: ResumeDocument, sectionKind: SectionKind, item: SectionItem): ResumeDocument {
+export function addItem(
+  doc: ResumeDocument,
+  sectionKind: SectionKind,
+  item: SectionItem,
+): ResumeDocument {
   const section = sectionFor(doc, sectionKind);
-  const items = reindex([...section.items, { ...item, order: section.items.length } as SectionItem]);
+  const items = reindex([
+    ...section.items,
+    { ...item, order: section.items.length } as SectionItem,
+  ]);
   return replaceSection(doc, { ...section, items, visible: true });
 }
 
-export function moveItem(doc: ResumeDocument, sectionKind: SectionKind, from: number, to: number): ResumeDocument {
+export function moveItem(
+  doc: ResumeDocument,
+  sectionKind: SectionKind,
+  from: number,
+  to: number,
+): ResumeDocument {
   const section = sectionFor(doc, sectionKind);
   const items = [...section.items];
   if (from < 0 || from >= items.length || to < 0 || to >= items.length) return doc;
@@ -81,12 +101,23 @@ export function moveItem(doc: ResumeDocument, sectionKind: SectionKind, from: nu
   return replaceSection(doc, { ...section, items: reindex(items) });
 }
 
-export function setSectionVisible(doc: ResumeDocument, kind: SectionKind, visible: boolean): ResumeDocument {
+export function setSectionVisible(
+  doc: ResumeDocument,
+  kind: SectionKind,
+  visible: boolean,
+): ResumeDocument {
   return replaceSection(doc, { ...sectionFor(doc, kind), visible });
 }
 
-export function setSectionTitle(doc: ResumeDocument, kind: SectionKind, title: string | undefined): ResumeDocument {
-  return replaceSection(doc, { ...sectionFor(doc, kind), title: title?.trim() ? title.trim() : undefined });
+export function setSectionTitle(
+  doc: ResumeDocument,
+  kind: SectionKind,
+  title: string | undefined,
+): ResumeDocument {
+  return replaceSection(doc, {
+    ...sectionFor(doc, kind),
+    title: title?.trim() ? title.trim() : undefined,
+  });
 }
 
 export function moveSection(doc: ResumeDocument, from: number, to: number): ResumeDocument {
@@ -118,11 +149,36 @@ export function blankItem(kind: SectionItem["kind"], sectionKind: SectionKind): 
   const base = { ref, visible: true, order: 0, origin: "USER" as const };
   switch (kind) {
     case "experience":
-      return { kind, employer: "Company", title: "Role", employmentType: "FULL_TIME", bullets: [], achievements: [], technologies: [], skillsUsed: [], current: false, ...base } as SectionItem;
+      return {
+        kind,
+        employer: "Company",
+        title: "Role",
+        employmentType: "FULL_TIME",
+        bullets: [],
+        achievements: [],
+        technologies: [],
+        skillsUsed: [],
+        current: false,
+        ...base,
+      } as SectionItem;
     case "education":
-      return { kind, institution: "School", coursework: [], activities: [], current: false, ...base } as SectionItem;
+      return {
+        kind,
+        institution: "School",
+        coursework: [],
+        activities: [],
+        current: false,
+        ...base,
+      } as SectionItem;
     case "project":
-      return { kind, name: "Project", bullets: [], technologies: [], skillsUsed: [], ...base } as SectionItem;
+      return {
+        kind,
+        name: "Project",
+        bullets: [],
+        technologies: [],
+        skillsUsed: [],
+        ...base,
+      } as SectionItem;
     case "skill":
       return { kind, name: "Skill", category: "OTHER", keywords: [], ...base } as SectionItem;
     case "certification":
@@ -134,9 +190,22 @@ export function blankItem(kind: SectionItem["kind"], sectionKind: SectionKind): 
     case "language":
       return { kind, name: "Language", ...base } as SectionItem;
     case "volunteer":
-      return { kind, organization: "Organization", role: "Role", bullets: [], current: false, ...base } as SectionItem;
+      return {
+        kind,
+        organization: "Organization",
+        role: "Role",
+        bullets: [],
+        current: false,
+        ...base,
+      } as SectionItem;
     case "custom":
-      return { kind, title: DEFAULT_SECTION_TITLES[sectionKind] ?? "Custom", sectionKindTag: "generic", items: [], ...base } as SectionItem;
+      return {
+        kind,
+        title: DEFAULT_SECTION_TITLES[sectionKind] ?? "Custom",
+        sectionKindTag: "generic",
+        items: [],
+        ...base,
+      } as SectionItem;
   }
 }
 

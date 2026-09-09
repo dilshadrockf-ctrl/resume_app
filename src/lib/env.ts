@@ -94,9 +94,7 @@ const envSchema = z.object({
 export type AppEnv = z.infer<typeof envSchema>;
 
 function formatZodIssues(error: z.ZodError): string {
-  return error.issues
-    .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
-    .join("\n");
+  return error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
 }
 
 let cached: AppEnv | null = null;
@@ -141,7 +139,8 @@ function ensure(): AppEnv {
     // Only possible for dev when a non-fatal field is invalid; fill defaults.
     const fallback = envSchema.safeParse({
       ...process.env,
-      DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://resume:resume@localhost:5432/resumebuilder",
+      DATABASE_URL:
+        process.env.DATABASE_URL ?? "postgresql://resume:resume@localhost:5432/resumebuilder",
     });
     if (!fallback.success) {
       throw new Error(`Environment validation failed: ${formatZodIssues(fallback.error)}`);

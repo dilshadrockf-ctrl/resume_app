@@ -15,7 +15,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
   return (
     <div className="flex min-h-dvh">
-      <Sidebar user={{ ...user, role: user.role === "ADMIN" ? "ADMIN" : "USER", emailVerified: Boolean(user.emailVerified) }} isDev={isDevelopment()} />
+      <Sidebar
+        user={{
+          ...user,
+          role: user.role === "ADMIN" ? "ADMIN" : "USER",
+          emailVerified: Boolean(user.emailVerified),
+        }}
+        isDev={isDevelopment()}
+      />
       <main id="main" className="min-w-0 flex-1 pb-20 lg:pb-0">
         {children}
       </main>

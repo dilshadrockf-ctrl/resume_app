@@ -10,7 +10,6 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 
-
 interface Family {
   pkg: string;
   base: string;
@@ -63,7 +62,6 @@ const FAMILIES: Family[] = [
   },
 ];
 
-
 let cache: Map<PdfFontKey, Uint8Array> | null = null;
 
 export function loadPdfFonts(onlyKeys?: Set<string>): Map<PdfFontKey, Uint8Array> {
@@ -78,7 +76,10 @@ export function loadPdfFonts(onlyKeys?: Set<string>): Map<PdfFontKey, Uint8Array
         out.set(key, new Uint8Array(readFileSync(require.resolve(`${f.pkg}/${dir}/${file}`))));
       } catch {
         try {
-          out.set(key, new Uint8Array(readFileSync(require.resolve(`${f.pkg}/${fallback[0]}/${fallback[1]}`))));
+          out.set(
+            key,
+            new Uint8Array(readFileSync(require.resolve(`${f.pkg}/${fallback[0]}/${fallback[1]}`))),
+          );
         } catch {
           /* base font missing => pdf renderer falls back to Helvetica */
         }

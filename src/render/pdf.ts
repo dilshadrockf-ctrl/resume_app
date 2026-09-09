@@ -1,4 +1,13 @@
-import { PDFArray, PDFDict, PDFDocument, PDFName, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import {
+  PDFArray,
+  PDFDict,
+  PDFDocument,
+  PDFName,
+  StandardFonts,
+  rgb,
+  type PDFFont,
+  type PDFPage,
+} from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import { typesetDoc, type PlacedDoc, type PlacedItem, type PlacedLine } from "@/templates/typeset";
 import type { RenderDoc } from "@/templates/blocks";
@@ -24,9 +33,18 @@ type FontMap = Record<string, PDFFont>;
  * document context so exported PDFs carry clickable URLs/mailto links.
  * Any failure must never break the export.
  */
-function addLinkAnnotation(pdf: PDFDocument, p: PDFPage, url: string, x: number, y: number, w: number, h: number) {
+function addLinkAnnotation(
+  pdf: PDFDocument,
+  p: PDFPage,
+  url: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
   try {
-    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || w <= 0 || h <= 0) return;
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || w <= 0 || h <= 0)
+      return;
     const ctx = pdf.context;
     const annot = PDFDict.withContext(ctx);
     annot.set(PDFName.Type, PDFName.of("Annot"));
@@ -56,7 +74,8 @@ function hexToRgb(hex: string) {
 function collectFontKeys(families: Array<"inter" | "lora" | "mono">): Set<string> {
   const keys = new Set<string>();
   for (const fam of families) {
-    for (const bold of [false, true]) for (const italic of [false, true]) keys.add(pdfFontKey(fam, bold, italic));
+    for (const bold of [false, true])
+      for (const italic of [false, true]) keys.add(pdfFontKey(fam, bold, italic));
   }
   return keys;
 }
@@ -129,7 +148,10 @@ function drawText(
 ) {
   const pageH = p.getHeight();
   lines.forEach((line, li) => {
-    const lineWidth = line.runs.reduce((a, r) => a + (fonts[r.fontKey]?.widthOfTextAtSize(r.text, r.size) ?? 0), 0);
+    const lineWidth = line.runs.reduce(
+      (a, r) => a + (fonts[r.fontKey]?.widthOfTextAtSize(r.text, r.size) ?? 0),
+      0,
+    );
     let x = x0;
     if (align === "right") x = x0 + Math.max(0, width - lineWidth);
     else if (align === "center") x = x0 + Math.max(0, (width - lineWidth) / 2);
@@ -137,7 +159,13 @@ function drawText(
     const y = pageH - y0 - li * lineHeight - size * 0.82;
     for (const run of line.runs) {
       const font = fonts[run.fontKey] ?? fonts[pdfFontKey("inter", false, false)]!;
-      const safeText = typeof run.text === "string" ? run.text : (() => { console.error("BAD RUN:", JSON.stringify(run)); return ""; })();
+      const safeText =
+        typeof run.text === "string"
+          ? run.text
+          : (() => {
+              console.error("BAD RUN:", JSON.stringify(run));
+              return "";
+            })();
       const w = font.widthOfTextAtSize(safeText, run.size);
       if (safeText.trim()) {
         p.drawText(safeText, {

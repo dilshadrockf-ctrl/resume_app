@@ -38,18 +38,20 @@ export async function rateLimit(scope: LimitScope, identity: string): Promise<Ra
   const redis = await getRedis();
   if (redis) {
     try {
-      const results = (await redis
-        .multi()
-        .incr(key)
-        .ttl(key)
-        .exec()) as [[null, number], [null, number]] | null;
+      const results = (await redis.multi().incr(key).ttl(key).exec()) as
+        [[null, number], [null, number]] | null;
       const count = results?.[0]?.[1] ?? 1;
       let ttl = results?.[1]?.[1] ?? -1;
       if (ttl < 0) {
         await redis.expire(key, windowSec);
         ttl = windowSec;
       }
-      return { ok: count <= max, remaining: Math.max(0, max - count), resetMs: ttl * 1000, limit: max };
+      return {
+        ok: count <= max,
+        remaining: Math.max(0, max - count),
+        resetMs: ttl * 1000,
+        limit: max,
+      };
     } catch {
       /* fall through to memory */
     }
@@ -62,5 +64,10 @@ export async function rateLimit(scope: LimitScope, identity: string): Promise<Ra
     return { ok: true, remaining: Math.max(0, max - 1), resetMs: windowSec * 1000, limit: max };
   }
   entry.count++;
-  return { ok: entry.count <= max, remaining: Math.max(0, max - entry.count), resetMs: entry.resetAt - now, limit: max };
+  return {
+    ok: entry.count <= max,
+    remaining: Math.max(0, max - entry.count),
+    resetMs: entry.resetAt - now,
+    limit: max,
+  };
 }

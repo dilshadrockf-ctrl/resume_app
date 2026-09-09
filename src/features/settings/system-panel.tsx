@@ -25,8 +25,12 @@ export function SystemPanel({ checks }: { checks: SystemCheck[] }) {
               <XCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden />
             )}
             <span className="w-24 shrink-0 font-medium">{c.label}</span>
-            <span className="min-w-0 flex-1 break-words text-xs text-muted-foreground">{c.detail}</span>
-            <Badge variant={c.ok ? "success" : c.warn ? "warning" : "destructive"}>{c.ok ? "ok" : c.warn ? "optional" : "down"}</Badge>
+            <span className="min-w-0 flex-1 break-words text-xs text-muted-foreground">
+              {c.detail}
+            </span>
+            <Badge variant={c.ok ? "success" : c.warn ? "warning" : "destructive"}>
+              {c.ok ? "ok" : c.warn ? "optional" : "down"}
+            </Badge>
           </div>
         ))}
       </CardContent>

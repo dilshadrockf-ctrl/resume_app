@@ -28,12 +28,19 @@ export async function registerAction(raw: {
 }): Promise<ActionResult<{ email: string }>> {
   return withValidation(registerSchema, raw, async (input) => {
     const limit = await rateLimit("register", input.email);
-    if (!limit.ok) return fail("Too many sign-ups from this email. Try again later.", "RATE_LIMITED");
+    if (!limit.ok)
+      return fail("Too many sign-ups from this email. Try again later.", "RATE_LIMITED");
     const strength = checkPasswordStrength(input.password, input.email);
-    if (!strength.ok) return fail(strength.message ?? "Weak password", "VALIDATION", { password: strength.message ?? "" });
+    if (!strength.ok)
+      return fail(strength.message ?? "Weak password", "VALIDATION", {
+        password: strength.message ?? "",
+      });
 
     const existing = await db.user.findUnique({ where: { email: input.email } });
-    if (existing) return fail("An account with that email already exists.", "CONFLICT", { email: "Already registered" });
+    if (existing)
+      return fail("An account with that email already exists.", "CONFLICT", {
+        email: "Already registered",
+      });
 
     const passwordHash = await hashPassword(input.password);
     const user = await db.user.create({
@@ -95,7 +102,10 @@ export async function loginAction(raw: {
       return ok({ redirectTo: parsed.data.redirectTo ?? "/dashboard" });
     } catch (e) {
       if (e instanceof AuthError) {
-        const msg = e.type === "CredentialsSignin" ? "Incorrect email or password." : "Sign-in failed. Try again.";
+        const msg =
+          e.type === "CredentialsSignin"
+            ? "Incorrect email or password."
+            : "Sign-in failed. Try again.";
         return fail(msg, e.type === "CredentialsSignin" ? "UNAUTHORIZED" : "INTERNAL");
       }
       throw e; // NEXT_REDIRECT on success is handled by Next
@@ -107,42 +117,50 @@ export async function logoutAction(): Promise<void> {
   await signOut({ redirectTo: "/" });
 }
 
-export async function forgotPasswordAction(raw: { email: string }): Promise<ActionResult<{ sent: true }>> {
+export async function forgotPasswordAction(raw: {
+  email: string;
+}): Promise<ActionResult<{ sent: true }>> {
   return withValidation(
     z.object({ email: emailSchema }),
     raw,
     async (input): Promise<ActionResult<{ sent: true }>> => {
-    const limit = await rateLimit("login", `reset:${input.email}`);
-    if (!limit.ok) return fail("Too many requests. Try again in a minute.", "RATE_LIMITED");
-    const user = await db.user.findUnique({ where: { email: input.email } });
-    // Always report the same outcome so accounts are not enumerable (§59).
-    if (user) {
-      const { raw: rawToken } = newToken();
-      await db.authToken.create({
-        data: {
-          tokenHash: hashToken(rawToken),
-          purpose: "PASSWORD_RESET",
-          email: input.email,
-          userId: user.id,
-          expiresAt: new Date(Date.now() + 3600_000),
-        },
-      });
-      const url = `${appConfig.baseUrl}/reset-password?token=${rawToken}`;
-      await sendEmail({
-        to: input.email,
-        subject: "Reset your ResumeForge password",
-        text:
-          `Use this secure link to choose a new password (expires in 1 hour):\n${url}\n\n` +
-          `If you didn't request this, you can ignore this email.`,
-      });
-      await audit({ userId: user.id, role: "USER", email: user.email }, "password_reset_requested");
-    }
-    return ok({ sent: true });
+      const limit = await rateLimit("login", `reset:${input.email}`);
+      if (!limit.ok) return fail("Too many requests. Try again in a minute.", "RATE_LIMITED");
+      const user = await db.user.findUnique({ where: { email: input.email } });
+      // Always report the same outcome so accounts are not enumerable (§59).
+      if (user) {
+        const { raw: rawToken } = newToken();
+        await db.authToken.create({
+          data: {
+            tokenHash: hashToken(rawToken),
+            purpose: "PASSWORD_RESET",
+            email: input.email,
+            userId: user.id,
+            expiresAt: new Date(Date.now() + 3600_000),
+          },
+        });
+        const url = `${appConfig.baseUrl}/reset-password?token=${rawToken}`;
+        await sendEmail({
+          to: input.email,
+          subject: "Reset your ResumeForge password",
+          text:
+            `Use this secure link to choose a new password (expires in 1 hour):\n${url}\n\n` +
+            `If you didn't request this, you can ignore this email.`,
+        });
+        await audit(
+          { userId: user.id, role: "USER", email: user.email },
+          "password_reset_requested",
+        );
+      }
+      return ok({ sent: true });
     },
   );
 }
 
-export async function resetPasswordAction(raw: { token: string; password: string }): Promise<ActionResult<undefined>> {
+export async function resetPasswordAction(raw: {
+  token: string;
+  password: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(
     z.object({ token: z.string().min(20).max(200), password: z.string().min(10).max(200) }),
     raw,
@@ -152,7 +170,10 @@ export async function resetPasswordAction(raw: { token: string; password: string
         return fail("That reset link is invalid or has expired. Request a new one.", "VALIDATION");
       }
       const strength = checkPasswordStrength(input.password, tok.email);
-      if (!strength.ok) return fail(strength.message ?? "Weak password", "VALIDATION", { password: strength.message ?? "" });
+      if (!strength.ok)
+        return fail(strength.message ?? "Weak password", "VALIDATION", {
+          password: strength.message ?? "",
+        });
       const user = await db.user.findUnique({ where: { email: tok.email } });
       if (!user) return fail("Account not found.", "NOT_FOUND");
       const passwordHash = await hashPassword(input.password);
@@ -161,7 +182,9 @@ export async function resetPasswordAction(raw: { token: string; password: string
         await tx.authToken.update({ where: { id: tok.id }, data: { usedAt: new Date() } });
         // invalidate all sessions + outstanding verify links
         await tx.session.deleteMany({ where: { userId: user.id } });
-        await tx.authToken.deleteMany({ where: { email: tok.email, purpose: "EMAIL_VERIFY", usedAt: null } });
+        await tx.authToken.deleteMany({
+          where: { email: tok.email, purpose: "EMAIL_VERIFY", usedAt: null },
+        });
       });
       await audit({ userId: user.id, role: "USER", email: tok.email }, "password_reset_completed");
       revalidatePath("/login");
@@ -170,7 +193,9 @@ export async function resetPasswordAction(raw: { token: string; password: string
   );
 }
 
-export async function verifyEmailAction(raw: { token: string }): Promise<ActionResult<{ email: string }>> {
+export async function verifyEmailAction(raw: {
+  token: string;
+}): Promise<ActionResult<{ email: string }>> {
   return withValidation(z.object({ token: z.string().min(20).max(200) }), raw, async (input) => {
     const tok = await db.authToken.findUnique({ where: { tokenHash: hashToken(input.token) } });
     if (!tok || tok.purpose !== "EMAIL_VERIFY" || tok.expiresAt < new Date()) {
@@ -179,7 +204,8 @@ export async function verifyEmailAction(raw: { token: string }): Promise<ActionR
     const user = await db.user.findUnique({ where: { email: tok.email } });
     if (!user) return fail("Account not found.", "NOT_FOUND");
     await db.$transaction(async (tx) => {
-      if (!user.emailVerified) await tx.user.update({ where: { id: user.id }, data: { emailVerified: new Date() } });
+      if (!user.emailVerified)
+        await tx.user.update({ where: { id: user.id }, data: { emailVerified: new Date() } });
       await tx.authToken.update({ where: { id: tok.id }, data: { usedAt: new Date() } });
     });
     return ok({ email: user.email });
@@ -211,18 +237,32 @@ export async function resendVerificationAction(): Promise<ActionResult<{ sent: b
   });
 }
 
-const changeSchema = z.object({ current: z.string().min(1).max(200), next: z.string().min(10).max(200) });
+const changeSchema = z.object({
+  current: z.string().min(1).max(200),
+  next: z.string().min(10).max(200),
+});
 
-export async function changePasswordAction(raw: { current: string; next: string }): Promise<ActionResult<undefined>> {
+export async function changePasswordAction(raw: {
+  current: string;
+  next: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(changeSchema, raw, async (input) => {
     const { requireCtx } = await import("@/server/context");
     const ctx = await requireCtx();
-    const user = await db.user.findUnique({ where: { id: ctx.userId }, select: { passwordHash: true, email: true } });
-    if (!user?.passwordHash) return fail("This account uses a different sign-in method.", "VALIDATION");
+    const user = await db.user.findUnique({
+      where: { id: ctx.userId },
+      select: { passwordHash: true, email: true },
+    });
+    if (!user?.passwordHash)
+      return fail("This account uses a different sign-in method.", "VALIDATION");
     const { verifyPassword } = await import("@/lib/password");
-    if (!(await verifyPassword(user.passwordHash, input.current))) return fail("Current password is incorrect.", "UNAUTHORIZED", { current: "Wrong password" });
+    if (!(await verifyPassword(user.passwordHash, input.current)))
+      return fail("Current password is incorrect.", "UNAUTHORIZED", { current: "Wrong password" });
     const strength = checkPasswordStrength(input.next, user.email);
-    if (!strength.ok) return fail(strength.message ?? "Weak password", "VALIDATION", { next: strength.message ?? "" });
+    if (!strength.ok)
+      return fail(strength.message ?? "Weak password", "VALIDATION", {
+        next: strength.message ?? "",
+      });
     const passwordHash = await hashPassword(input.next);
     await db.$transaction(async (tx) => {
       await tx.user.update({ where: { id: ctx.userId }, data: { passwordHash } });
@@ -233,14 +273,17 @@ export async function changePasswordAction(raw: { current: string; next: string 
   });
 }
 
-export async function deleteAccountAction(raw: { password: string }): Promise<ActionResult<undefined>> {
+export async function deleteAccountAction(raw: {
+  password: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(z.object({ password: z.string().min(1).max(200) }), raw, async (input) => {
     const { requireCtx } = await import("@/server/context");
     const ctx = await requireCtx();
     const user = await db.user.findUnique({ where: { id: ctx.userId } });
     if (!user?.passwordHash) return fail("Cannot verify password for this account.", "VALIDATION");
     const { verifyPassword } = await import("@/lib/password");
-    if (!(await verifyPassword(user.passwordHash, input.password))) return fail("Password incorrect — account NOT deleted.", "UNAUTHORIZED");
+    if (!(await verifyPassword(user.passwordHash, input.password)))
+      return fail("Password incorrect — account NOT deleted.", "UNAUTHORIZED");
     // Deletion trail lives in the server log — DB rows (including audit
     // history) are intentionally erased, per the right-to-be-forgotten flow.
     log.info("account deleted", { userId: ctx.userId });

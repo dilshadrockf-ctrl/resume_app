@@ -23,8 +23,11 @@ export type ActionErrorCode =
   | "INTERNAL";
 
 export const ok = <T>(data: T): ActionResult<T> => ({ ok: true, data });
-export const fail = (error: string, code: ActionErrorCode = "INTERNAL", fieldErrors?: Record<string, string>): ActionResult<never> =>
-  ({ ok: false, error, code, fieldErrors });
+export const fail = (
+  error: string,
+  code: ActionErrorCode = "INTERNAL",
+  fieldErrors?: Record<string, string>,
+): ActionResult<never> => ({ ok: false, error, code, fieldErrors });
 
 /** Recommended wrapper for use with a zod-parsed input. */
 export function withValidation<TIn, TOut>(
@@ -52,7 +55,8 @@ export async function guard<T>(fn: () => Promise<ActionResult<T>>): Promise<Acti
     return await fn();
   } catch (e) {
     if (e instanceof UnauthorizedError) return fail("Please sign in again.", "UNAUTHORIZED");
-    if (e instanceof ForbiddenError) return fail("You do not have access to that resource.", "FORBIDDEN");
+    if (e instanceof ForbiddenError)
+      return fail("You do not have access to that resource.", "FORBIDDEN");
     if (e instanceof ZodError) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of e.issues.slice(0, 12)) {

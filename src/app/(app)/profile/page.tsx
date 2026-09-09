@@ -28,12 +28,20 @@ export default async function ProfilePage() {
   });
   if (!profile) redirect("/login");
   const contact = await db.profile.findUnique({ where: { userId: ctx.userId } });
-  const archivedExperiences = await db.experience.count({ where: { careerProfileId: profile.id, archivedAt: { not: null } } });
+  const archivedExperiences = await db.experience.count({
+    where: { careerProfileId: profile.id, archivedAt: { not: null } },
+  });
 
   const rows = {
-    experience: profile.experiences, education: profile.educations, project: profile.projects,
-    skill: profile.skills, certification: profile.certifications, award: profile.awards,
-    publication: profile.publications, language: profile.languages, volunteer: profile.volunteers,
+    experience: profile.experiences,
+    education: profile.educations,
+    project: profile.projects,
+    skill: profile.skills,
+    certification: profile.certifications,
+    award: profile.awards,
+    publication: profile.publications,
+    language: profile.languages,
+    volunteer: profile.volunteers,
     custom: profile.customSections,
   };
 
@@ -42,8 +50,8 @@ export default async function ProfilePage() {
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Career profile</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          One place for every career fact. Resumes reference this library — fix a typo once,
-          every resume updates. Removing a resume never removes anything here.
+          One place for every career fact. Resumes reference this library — fix a typo once, every
+          resume updates. Removing a resume never removes anything here.
         </p>
       </header>
       <div className="mb-6">

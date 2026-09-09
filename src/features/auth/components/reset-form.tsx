@@ -38,7 +38,10 @@ export function ResetForm() {
       <Card>
         <CardContent className="p-6 text-sm">
           <p className="text-destructive">This reset link is missing its token.</p>
-          <Link className="mt-3 inline-block font-medium text-primary hover:underline" href="/forgot-password">
+          <Link
+            className="mt-3 inline-block font-medium text-primary hover:underline"
+            href="/forgot-password"
+          >
             Request a new link
           </Link>
         </CardContent>
@@ -52,12 +55,30 @@ export function ResetForm() {
         <h1 className="text-lg font-semibold">Choose a new password</h1>
         <form onSubmit={onSubmit} className="mt-6 grid gap-4" noValidate>
           <Field label="New password" htmlFor="pw" hint="At least 10 characters.">
-            <Input id="pw" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+            <Input
+              id="pw"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </Field>
           <Field label="Confirm new password" htmlFor="pw2">
-            <Input id="pw2" type="password" autoComplete="new-password" required value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            <Input
+              id="pw2"
+              type="password"
+              autoComplete="new-password"
+              required
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
           </Field>
-          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
           <Button type="submit" disabled={busy}>
             {busy ? <Spinner /> : null} Update password
           </Button>

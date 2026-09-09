@@ -218,4 +218,4 @@ export async function recordOutcome(
   return res.count > 0;
 }
 
-export { hashInput };
+export { hashInput, evaluateOutput };

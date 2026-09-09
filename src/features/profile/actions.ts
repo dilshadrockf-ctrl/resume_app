@@ -23,21 +23,39 @@ import {
  */
 
 export const LIBRARY_KINDS = [
-  "experience", "education", "project", "skill", "certification",
-  "award", "publication", "language", "volunteer", "custom",
+  "experience",
+  "education",
+  "project",
+  "skill",
+  "certification",
+  "award",
+  "publication",
+  "language",
+  "volunteer",
+  "custom",
 ] as const;
 export type LibraryKind = (typeof LIBRARY_KINDS)[number];
 
 const DELEGATE: Record<LibraryKind, string> = {
-  experience: "experience", education: "education", project: "project", skill: "skill",
-  certification: "certification", award: "award", publication: "publication",
-  language: "languageEntry", volunteer: "volunteerExperience", custom: "customSection",
+  experience: "experience",
+  education: "education",
+  project: "project",
+  skill: "skill",
+  certification: "certification",
+  award: "award",
+  publication: "publication",
+  language: "languageEntry",
+  volunteer: "volunteerExperience",
+  custom: "customSection",
 };
 
 /** strip doc-only fields, keep entry payload */
 function entryData(kind: LibraryKind, parsed: Record<string, unknown>): Record<string, unknown> {
   const { ref, visible, order, origin, ...rest } = parsed;
-  void ref; void visible; void order; void origin;
+  void ref;
+  void visible;
+  void order;
+  void origin;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(rest)) out[k] = v === undefined ? null : v;
   if (kind === "custom") {
@@ -49,9 +67,15 @@ function entryData(kind: LibraryKind, parsed: Record<string, unknown>): Record<s
 }
 
 const entrySchemas: Record<LibraryKind, z.ZodType> = {
-  experience: experienceItemSchema, education: educationItemSchema, project: projectItemSchema,
-  skill: skillItemSchema, certification: certificationItemSchema, award: awardItemSchema,
-  publication: publicationItemSchema, language: languageItemSchema, volunteer: volunteerItemSchema,
+  experience: experienceItemSchema,
+  education: educationItemSchema,
+  project: projectItemSchema,
+  skill: skillItemSchema,
+  certification: certificationItemSchema,
+  award: awardItemSchema,
+  publication: publicationItemSchema,
+  language: languageItemSchema,
+  volunteer: volunteerItemSchema,
   custom: customItemSchema,
 };
 
@@ -65,9 +89,16 @@ export async function saveEntryAction(raw: {
     const schema = entrySchemas[raw.kind];
     if (!schema) return fail("Unknown entry kind", "VALIDATION");
     const KIND_TO_MODEL: Record<LibraryKind, string> = {
-      experience: "EXPERIENCE", education: "EDUCATION", project: "PROJECT", skill: "SKILL",
-      certification: "CERTIFICATION", award: "AWARD", publication: "PUBLICATION",
-      language: "LANGUAGE", volunteer: "VOLUNTEER", custom: "CUSTOM_SECTION",
+      experience: "EXPERIENCE",
+      education: "EDUCATION",
+      project: "PROJECT",
+      skill: "SKILL",
+      certification: "CERTIFICATION",
+      award: "AWARD",
+      publication: "PUBLICATION",
+      language: "LANGUAGE",
+      volunteer: "VOLUNTEER",
+      custom: "CUSTOM_SECTION",
     };
     const parsed = (schema as z.ZodType<Record<string, unknown>>).parse({
       ...raw.data,
@@ -78,13 +109,25 @@ export async function saveEntryAction(raw: {
     const data = entryData(raw.kind, parsed);
     const profile = await db.careerProfile.findUnique({ where: { userId: ctx.userId } });
     if (!profile) return fail("Career profile not found", "NOT_FOUND");
-    const delegate = (db as unknown as Record<string, {
-      create: (a: { data: object }) => Promise<{ id: string }>;
-      update: (a: { where: { id: string }; data: object }) => Promise<{ id: string }>;
-    }>)[DELEGATE[raw.kind]]!;
+    const delegate = (
+      db as unknown as Record<
+        string,
+        {
+          create: (a: { data: object }) => Promise<{ id: string }>;
+          update: (a: { where: { id: string }; data: object }) => Promise<{ id: string }>;
+        }
+      >
+    )[DELEGATE[raw.kind]]!;
     if (raw.id) {
-      const finder = (db as unknown as Record<string, { findFirst: (a: { where: object }) => Promise<{ id: string } | null> }>)[DELEGATE[raw.kind]]!;
-      const existing = await finder.findFirst({ where: { id: raw.id, careerProfileId: profile.id } });
+      const finder = (
+        db as unknown as Record<
+          string,
+          { findFirst: (a: { where: object }) => Promise<{ id: string } | null> }
+        >
+      )[DELEGATE[raw.kind]]!;
+      const existing = await finder.findFirst({
+        where: { id: raw.id, careerProfileId: profile.id },
+      });
       if (!existing) return fail("Entry not found", "NOT_FOUND");
       await delegate.update({ where: { id: raw.id }, data });
       await audit(ctx, "entry_updated", { kind: raw.kind, id: raw.id });
@@ -98,20 +141,39 @@ export async function saveEntryAction(raw: {
   });
 }
 
-export async function deleteEntryAction(raw: { kind: LibraryKind; id: string; purge?: boolean }): Promise<ActionResult<undefined>> {
+export async function deleteEntryAction(raw: {
+  kind: LibraryKind;
+  id: string;
+  purge?: boolean;
+}): Promise<ActionResult<undefined>> {
   return withValidation(
-    z.object({ kind: z.enum(LIBRARY_KINDS), id: z.string().min(1).max(64), purge: z.boolean().optional() }),
+    z.object({
+      kind: z.enum(LIBRARY_KINDS),
+      id: z.string().min(1).max(64),
+      purge: z.boolean().optional(),
+    }),
     raw,
     async (input) => {
       const ctx = await requireCtx();
       const profile = await db.careerProfile.findUnique({ where: { userId: ctx.userId } });
       if (!profile) return ok(undefined);
-      const d = (db as unknown as Record<string, { updateMany: (a: { where: object; data: object }) => Promise<{ count: number }>; deleteMany: (a: { where: object }) => Promise<{ count: number }> }>)[DELEGATE[input.kind]]!;
+      const d = (
+        db as unknown as Record<
+          string,
+          {
+            updateMany: (a: { where: object; data: object }) => Promise<{ count: number }>;
+            deleteMany: (a: { where: object }) => Promise<{ count: number }>;
+          }
+        >
+      )[DELEGATE[input.kind]]!;
       if (input.purge) {
         await d.deleteMany({ where: { id: input.id, careerProfileId: profile.id } });
         await audit(ctx, "entry_purged", { kind: input.kind, id: input.id });
       } else {
-        await d.updateMany({ where: { id: input.id, careerProfileId: profile.id }, data: { archivedAt: new Date() } });
+        await d.updateMany({
+          where: { id: input.id, careerProfileId: profile.id },
+          data: { archivedAt: new Date() },
+        });
         await audit(ctx, "entry_archived", { kind: input.kind, id: input.id });
       }
       revalidateAll();
@@ -120,7 +182,10 @@ export async function deleteEntryAction(raw: { kind: LibraryKind; id: string; pu
   );
 }
 
-export async function reorderEntriesAction(raw: { kind: LibraryKind; ids: string[] }): Promise<ActionResult<undefined>> {
+export async function reorderEntriesAction(raw: {
+  kind: LibraryKind;
+  ids: string[];
+}): Promise<ActionResult<undefined>> {
   return withValidation(
     z.object({ kind: z.enum(LIBRARY_KINDS), ids: z.array(z.string().min(1).max(64)).max(200) }),
     raw,
@@ -128,9 +193,16 @@ export async function reorderEntriesAction(raw: { kind: LibraryKind; ids: string
       const ctx = await requireCtx();
       const profile = await db.careerProfile.findUnique({ where: { userId: ctx.userId } });
       if (!profile) return ok(undefined);
-      const d = (db as unknown as Record<string, { updateMany: (a: { where: object; data: object }) => Promise<unknown> }>)[DELEGATE[input.kind]]!;
+      const d = (
+        db as unknown as Record<
+          string,
+          { updateMany: (a: { where: object; data: object }) => Promise<unknown> }
+        >
+      )[DELEGATE[input.kind]]!;
       await Promise.all(
-        input.ids.map((id, i) => d.updateMany({ where: { id, careerProfileId: profile.id }, data: { order: i } })),
+        input.ids.map((id, i) =>
+          d.updateMany({ where: { id, careerProfileId: profile.id }, data: { order: i } }),
+        ),
       );
       revalidateAll();
       return ok(undefined);
@@ -138,16 +210,31 @@ export async function reorderEntriesAction(raw: { kind: LibraryKind; ids: string
   );
 }
 
-export async function restoreEntryAction(raw: { kind: LibraryKind; id: string }): Promise<ActionResult<undefined>> {
-  return withValidation(z.object({ kind: z.enum(LIBRARY_KINDS), id: z.string().min(1).max(64) }), raw, async (input) => {
-    const ctx = await requireCtx();
-    const profile = await db.careerProfile.findUnique({ where: { userId: ctx.userId } });
-    if (!profile) return ok(undefined);
-    const d = (db as unknown as Record<string, { updateMany: (a: { where: object; data: object }) => Promise<unknown> }>)[DELEGATE[input.kind]]!;
-    await d.updateMany({ where: { id: input.id, careerProfileId: profile.id }, data: { archivedAt: null } });
-    revalidateAll();
-    return ok(undefined);
-  });
+export async function restoreEntryAction(raw: {
+  kind: LibraryKind;
+  id: string;
+}): Promise<ActionResult<undefined>> {
+  return withValidation(
+    z.object({ kind: z.enum(LIBRARY_KINDS), id: z.string().min(1).max(64) }),
+    raw,
+    async (input) => {
+      const ctx = await requireCtx();
+      const profile = await db.careerProfile.findUnique({ where: { userId: ctx.userId } });
+      if (!profile) return ok(undefined);
+      const d = (
+        db as unknown as Record<
+          string,
+          { updateMany: (a: { where: object; data: object }) => Promise<unknown> }
+        >
+      )[DELEGATE[input.kind]]!;
+      await d.updateMany({
+        where: { id: input.id, careerProfileId: profile.id },
+        data: { archivedAt: null },
+      });
+      revalidateAll();
+      return ok(undefined);
+    },
+  );
 }
 
 // ────────────────────────── profile (contact) + summary ─────────────────────
@@ -169,11 +256,14 @@ const profileSchema = z.object({
   targetField: z.string().trim().max(120).optional(),
 });
 
-export async function saveProfileAction(raw: z.input<typeof profileSchema>): Promise<ActionResult<undefined>> {
+export async function saveProfileAction(
+  raw: z.input<typeof profileSchema>,
+): Promise<ActionResult<undefined>> {
   return withValidation(profileSchema, raw, async (input) => {
     const ctx = await requireCtx();
     const data: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(input)) data[k] = typeof v === "string" && v.trim() === "" ? null : v;
+    for (const [k, v] of Object.entries(input))
+      data[k] = typeof v === "string" && v.trim() === "" ? null : v;
     await db.profile.upsert({
       where: { userId: ctx.userId },
       create: { userId: ctx.userId, ...data },
@@ -185,12 +275,17 @@ export async function saveProfileAction(raw: z.input<typeof profileSchema>): Pro
   });
 }
 
-export async function saveSummaryAction(raw: { summary: string }): Promise<ActionResult<undefined>> {
+export async function saveSummaryAction(raw: {
+  summary: string;
+}): Promise<ActionResult<undefined>> {
   return withValidation(z.object({ summary: z.string().max(2000) }), raw, async (input) => {
     const ctx = await requireCtx();
     const profile = await db.careerProfile.findUnique({ where: { userId: ctx.userId } });
     if (!profile) return ok(undefined);
-    await db.careerProfile.update({ where: { id: profile.id }, data: { summary: input.summary.trim() || null } });
+    await db.careerProfile.update({
+      where: { id: profile.id },
+      data: { summary: input.summary.trim() || null },
+    });
     await audit(ctx, "summary_updated");
     revalidateAll();
     return ok(undefined);

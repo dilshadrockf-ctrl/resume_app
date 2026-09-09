@@ -3,13 +3,34 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, FileText, FolderKanban, Briefcase, MailOpen, Wand2, User,
-  Settings2, Activity, Palette, LogOut, Sun, Moon, Monitor, ChevronsUpDown, Plus, Gauge,
+  LayoutDashboard,
+  FileText,
+  FolderKanban,
+  Briefcase,
+  MailOpen,
+  Wand2,
+  User,
+  Settings2,
+  Activity,
+  Palette,
+  LogOut,
+  Sun,
+  Moon,
+  Monitor,
+  ChevronsUpDown,
+  Plus,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/overlays";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/overlays";
 import { Badge } from "@/components/ui/primitives";
 import { logoutAction } from "@/features/auth/actions";
 
@@ -40,14 +61,20 @@ export function Sidebar({ user, isDev }: { user: ShellUser; isDev: boolean }) {
 
   return (
     <aside className="sticky top-0 hidden h-dvh w-56 shrink-0 flex-col border-r bg-card/60 px-3 py-4 lg:flex">
-      <Link href="/dashboard" className="mb-6 flex items-center gap-2 px-2 font-semibold tracking-tight">
+      <Link
+        href="/dashboard"
+        className="mb-6 flex items-center gap-2 px-2 font-semibold tracking-tight"
+      >
         <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <FileText className="size-4" aria-hidden />
         </span>
         ResumeForge
       </Link>
 
-      <Button className="mb-4 w-full justify-start gap-2" onClick={() => router.push("/resumes?new=1")}>
+      <Button
+        className="mb-4 w-full justify-start gap-2"
+        onClick={() => router.push("/resumes?new=1")}
+      >
         <Plus className="size-4" /> New resume
       </Button>
 
@@ -81,13 +108,28 @@ export function Sidebar({ user, isDev }: { user: ShellUser; isDev: boolean }) {
 
       <div className="mt-auto grid gap-2 border-t pt-3">
         <div className="flex items-center gap-1 px-1">
-          <Button variant="ghost" size="icon-sm" aria-label="Light theme" onClick={() => setTheme("light")}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Light theme"
+            onClick={() => setTheme("light")}
+          >
             <Sun />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="Dark theme" onClick={() => setTheme("dark")}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Dark theme"
+            onClick={() => setTheme("dark")}
+          >
             <Moon />
           </Button>
-          <Button variant="ghost" size="icon-sm" aria-label="System theme" onClick={() => setTheme("system")}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="System theme"
+            onClick={() => setTheme("system")}
+          >
             <Monitor />
           </Button>
         </div>

@@ -27,14 +27,18 @@ export async function getRedis(): Promise<Redis | null> {
           lazyConnect: true,
           connectTimeout: 2500,
         });
-        r.on("error", (e) => log.warn("redis error", { err: String((e as Error).message).slice(0, 120) }));
+        r.on("error", (e) =>
+          log.warn("redis error", { err: String((e as Error).message).slice(0, 120) }),
+        );
         await r.connect();
         client = r;
         log.info("redis connected");
         return r;
       } catch (e) {
         disabledUntil = Date.now() + 15_000;
-        log.warn("redis unavailable — using in-memory fallbacks", { err: String((e as Error).message).slice(0, 120) });
+        log.warn("redis unavailable — using in-memory fallbacks", {
+          err: String((e as Error).message).slice(0, 120),
+        });
         connectPromise = null;
         return null;
       }
@@ -70,7 +74,9 @@ export async function cacheGetJson<T>(key: string): Promise<T | null> {
 export async function cacheSetJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
   const r = await getRedis();
   if (!r) return;
-  await r.set(`cache:${key}`, JSON.stringify(value), "EX", Math.max(1, ttlSeconds)).catch(() => undefined);
+  await r
+    .set(`cache:${key}`, JSON.stringify(value), "EX", Math.max(1, ttlSeconds))
+    .catch(() => undefined);
 }
 
 export async function cacheDel(key: string): Promise<void> {

@@ -1,14 +1,30 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { FileText, User, Briefcase, FolderKanban, Sparkles, ArrowRight, CheckCircle2 } from "lucide-react";
+import {
+  FileText,
+  User,
+  Briefcase,
+  FolderKanban,
+  Sparkles,
+  ArrowRight,
+  CheckCircle2,
+} from "lucide-react";
 import { db } from "@/db/client";
 import { requireCtx } from "@/server/context";
 import { listResumes } from "@/features/resume/service";
 import { computeStats } from "@/lib/resume/stats";
 import { loadResumeDocument } from "@/features/resume/repository";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, EmptyState } from "@/components/ui/primitives";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  Badge,
+  EmptyState,
+} from "@/components/ui/primitives";
 import { timeAgo } from "@/lib/utils";
 import { NewResumeButton } from "@/features/resume/components/new-resume-button";
 
@@ -52,9 +68,27 @@ export default async function DashboardPage() {
   const byId = new Map(checks.map((c) => [c.id, c]));
 
   const steps = [
-    { done: contactReady, label: "Add your contact details", href: "/profile", icon: User, hint: "Name, email, links — shared by every resume." },
-    { done: libraryCount > 0, label: "Build your career library", href: "/profile", icon: FileText, hint: "Roles, projects, skills once; reused on every resume." },
-    { done: resumes.length > 0, label: "Create your first resume", href: "/resumes?new=1", icon: Sparkles, hint: "A resume assembles your library — never duplicates it." },
+    {
+      done: contactReady,
+      label: "Add your contact details",
+      href: "/profile",
+      icon: User,
+      hint: "Name, email, links — shared by every resume.",
+    },
+    {
+      done: libraryCount > 0,
+      label: "Build your career library",
+      href: "/profile",
+      icon: FileText,
+      hint: "Roles, projects, skills once; reused on every resume.",
+    },
+    {
+      done: resumes.length > 0,
+      label: "Create your first resume",
+      href: "/resumes?new=1",
+      icon: Sparkles,
+      hint: "A resume assembles your library — never duplicates it.",
+    },
   ];
   const nextStep = steps.find((s) => !s.done);
 
@@ -126,11 +160,22 @@ export default async function DashboardPage() {
                           </p>
                         </div>
                         {check?.score != null ? (
-                          <Badge variant={check.score >= 75 ? "success" : check.score >= 50 ? "warning" : "destructive"}>
+                          <Badge
+                            variant={
+                              check.score >= 75
+                                ? "success"
+                                : check.score >= 50
+                                  ? "warning"
+                                  : "destructive"
+                            }
+                          >
                             {check.score}%
                           </Badge>
                         ) : null}
-                        <ArrowRight className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                        <ArrowRight
+                          className="size-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
+                          aria-hidden
+                        />
                       </Link>
                     );
                   })
@@ -158,9 +203,22 @@ export default async function DashboardPage() {
             </CardHeader>
             <CardContent className="grid gap-1.5">
               {steps.map((s) => (
-                <Link key={s.label} href={s.href} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-accent">
-                  <CheckCircle2 className={s.done ? "size-4 shrink-0 text-success" : "size-4 shrink-0 text-muted-foreground/40"} aria-hidden />
-                  <span className={s.done ? "text-muted-foreground line-through decoration-1" : ""}>{s.label}</span>
+                <Link
+                  key={s.label}
+                  href={s.href}
+                  className="flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-accent"
+                >
+                  <CheckCircle2
+                    className={
+                      s.done
+                        ? "size-4 shrink-0 text-success"
+                        : "size-4 shrink-0 text-muted-foreground/40"
+                    }
+                    aria-hidden
+                  />
+                  <span className={s.done ? "text-muted-foreground line-through decoration-1" : ""}>
+                    {s.label}
+                  </span>
                 </Link>
               ))}
             </CardContent>
@@ -173,7 +231,13 @@ export default async function DashboardPage() {
 
 function greeting() {
   const h = new Date().getHours();
-  return h < 5 ? "Burning the midnight oil?" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  return h < 5
+    ? "Burning the midnight oil?"
+    : h < 12
+      ? "Good morning"
+      : h < 18
+        ? "Good afternoon"
+        : "Good evening";
 }
 
 function Stat({ label, value, href }: { label: string; value: number; href: string }) {

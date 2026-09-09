@@ -79,16 +79,15 @@ function toCtx(doc: RenderDoc): TypesetContext {
     fontSize: doc.fontSize,
     lineHeight: doc.lineHeight,
     bullet: doc.bullet,
-    page:
-      doc.paperSize === "A4"
-        ? { width: 595.28, height: 841.89 }
-        : { width: 612, height: 792 },
+    page: doc.paperSize === "A4" ? { width: 595.28, height: 841.89 } : { width: 612, height: 792 },
     margin: doc.marginPt,
   };
 }
 
 function runToPlaced(run: Run, o: TypesetContext, forceFont?: "inter"): PlacedRun {
-  const size = round2(Number.isFinite(run.size ?? o.fontSize) ? (run.size ?? o.fontSize) : o.fontSize);
+  const size = round2(
+    Number.isFinite(run.size ?? o.fontSize) ? (run.size ?? o.fontSize) : o.fontSize,
+  );
   const text = typeof run.text === "string" ? run.text : String(run.text ?? "");
   const family = (forceFont ? "inter" : o.baseFont) as "inter" | "lora" | "mono";
   return {
@@ -104,7 +103,12 @@ function runToPlaced(run: Run, o: TypesetContext, forceFont?: "inter"): PlacedRu
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-export function wrapRuns(measurer: Measurer, o: TypesetContext, runs: Run[], maxWidth: number): PlacedLine[] {
+export function wrapRuns(
+  measurer: Measurer,
+  o: TypesetContext,
+  runs: Run[],
+  maxWidth: number,
+): PlacedLine[] {
   const placed = runs.map((r) => runToPlaced(r, o));
   type Piece = { text: string; meta: PlacedRun; hard: boolean; width?: number };
   const pieces: Piece[] = [];
@@ -128,7 +132,13 @@ export function wrapRuns(measurer: Measurer, o: TypesetContext, runs: Run[], max
       width += w;
       const last = runsOut[runsOut.length - 1];
       const m = seg.meta;
-      if (last && last.fontKey === m.fontKey && last.size === m.size && last.color === m.color && last.link === m.link) {
+      if (
+        last &&
+        last.fontKey === m.fontKey &&
+        last.size === m.size &&
+        last.color === m.color &&
+        last.link === m.link
+      ) {
         last.text += seg.text;
       } else {
         runsOut.push({ ...m, text: seg.text });
@@ -166,18 +176,39 @@ interface BlockPlan {
   height: number;
 }
 
-function planBlock(render: RenderDoc, o: TypesetContext, measurer: Measurer, b: Block, width: number): BlockPlan {
+function planBlock(
+  render: RenderDoc,
+  o: TypesetContext,
+  measurer: Measurer,
+  b: Block,
+  width: number,
+): BlockPlan {
   switch (b.type) {
     case "paragraph": {
       const lines = wrapRuns(measurer, o, b.runs, width);
       const h = lines.length * o.lineHeight + (b.spaceAfter ?? 2);
-      return { items: [{ kind: "text", x: 0, y: 0, width, lineHeight: o.lineHeight, align: b.align ?? "left", lines }], height: h };
+      return {
+        items: [
+          {
+            kind: "text",
+            x: 0,
+            y: 0,
+            width,
+            lineHeight: o.lineHeight,
+            align: b.align ?? "left",
+            lines,
+          },
+        ],
+        height: h,
+      };
     }
     case "skill-group": {
       const runs: Run[] = [{ text: `${b.label}: `, bold: true }, { text: b.items.join(", ") }];
       const lines = wrapRuns(measurer, o, runs, width);
       return {
-        items: [{ kind: "text", x: 0, y: 0, width, lineHeight: o.lineHeight, align: "left", lines }],
+        items: [
+          { kind: "text", x: 0, y: 0, width, lineHeight: o.lineHeight, align: "left", lines },
+        ],
         height: lines.length * o.lineHeight + 1.5,
       };
     }
@@ -242,34 +273,80 @@ function withFirstLineMarker(line: PlacedLine, marker: string, o: TypesetContext
   const runs = [...line.runs];
   if (runs[0]?.text.startsWith(marker)) {
     runs[0] = { ...runs[0], text: runs[0].text.slice(marker.length), color: o.accent };
-    runs.unshift({ text: marker, fontKey: runs[0].fontKey, size: runs[0].size, bold: false, italic: false, color: o.accent });
+    runs.unshift({
+      text: marker,
+      fontKey: runs[0].fontKey,
+      size: runs[0].size,
+      bold: false,
+      italic: false,
+      color: o.accent,
+    });
   }
   return { runs, width: line.width };
 }
 
-function planEntry(render: RenderDoc, o: TypesetContext, measurer: Measurer, entry: EntryBlock, width: number): BlockPlan {
+function planEntry(
+  render: RenderDoc,
+  o: TypesetContext,
+  measurer: Measurer,
+  entry: EntryBlock,
+  width: number,
+): BlockPlan {
   const items: PlacedItem[] = [];
   let y = 0;
   const rightBelow = render.layout.datePlacement === "below";
-  const dateWidth = entry.right && !rightBelow ? Math.min(width * 0.34, measureDate(measurer, o, entry.right) + 10) : 0;
+  const dateWidth =
+    entry.right && !rightBelow
+      ? Math.min(width * 0.34, measureDate(measurer, o, entry.right) + 10)
+      : 0;
   const titleWidth = width - dateWidth;
 
   const titleLines = wrapRuns(measurer, o, entry.left, titleWidth);
-  items.push({ kind: "text", x: 0, y, width: titleWidth, lineHeight: o.lineHeight, align: "left", lines: titleLines });
+  items.push({
+    kind: "text",
+    x: 0,
+    y,
+    width: titleWidth,
+    lineHeight: o.lineHeight,
+    align: "left",
+    lines: titleLines,
+  });
   const titleBottom = y + titleLines.length * o.lineHeight;
 
   if (entry.right) {
     const dLines: PlacedLine[] = [
       {
-        runs: [runToPlaced({ text: entry.right, size: o.fontSize * 0.92, color: "#6b7280" }, o, render.baseFont === "lora" ? "inter" : undefined)],
+        runs: [
+          runToPlaced(
+            { text: entry.right, size: o.fontSize * 0.92, color: "#6b7280" },
+            o,
+            render.baseFont === "lora" ? "inter" : undefined,
+          ),
+        ],
         width: dateWidth || width,
       },
     ];
     if (rightBelow) {
-      items.push({ kind: "text", x: 0, y: titleBottom, width, lineHeight: o.lineHeight * 0.95, align: "left", lines: dLines });
+      items.push({
+        kind: "text",
+        x: 0,
+        y: titleBottom,
+        width,
+        lineHeight: o.lineHeight * 0.95,
+        align: "left",
+        lines: dLines,
+      });
       y = titleBottom + o.lineHeight * 0.95;
     } else {
-      items.push({ kind: "text", x: width - dateWidth, y, width: dateWidth, lineHeight: o.lineHeight, align: "right", lines: dLines });
+      items.push({
+        kind: "text",
+        x: width - dateWidth,
+        y,
+        width: dateWidth,
+        lineHeight: o.lineHeight,
+        align: "right",
+        lines: dLines,
+      });
       y = Math.max(titleBottom, y + o.lineHeight);
     }
   } else {
@@ -279,7 +356,15 @@ function planEntry(render: RenderDoc, o: TypesetContext, measurer: Measurer, ent
   if (entry.secondary?.length) {
     const sec = entry.secondary.map((r) => ({ ...r, color: r.color ?? "#4b5563" }));
     const lines = wrapRuns(measurer, o, sec, titleWidth);
-    items.push({ kind: "text", x: 0, y, width: titleWidth, lineHeight: o.lineHeight * 0.95, align: "left", lines });
+    items.push({
+      kind: "text",
+      x: 0,
+      y,
+      width: titleWidth,
+      lineHeight: o.lineHeight * 0.95,
+      align: "left",
+      lines,
+    });
     y += lines.length * o.lineHeight * 0.95;
   }
 
@@ -296,8 +381,21 @@ function planEntry(render: RenderDoc, o: TypesetContext, measurer: Measurer, ent
   }
 
   if (entry.tags) {
-    const lines = wrapRuns(measurer, o, [{ text: entry.tags, size: o.fontSize * 0.88, color: "#6b7280", italic: true }], width);
-    items.push({ kind: "text", x: 0, y, width, lineHeight: o.lineHeight * 0.9, align: "left", lines });
+    const lines = wrapRuns(
+      measurer,
+      o,
+      [{ text: entry.tags, size: o.fontSize * 0.88, color: "#6b7280", italic: true }],
+      width,
+    );
+    items.push({
+      kind: "text",
+      x: 0,
+      y,
+      width,
+      lineHeight: o.lineHeight * 0.9,
+      align: "left",
+      lines,
+    });
     y += lines.length * o.lineHeight * 0.9 + 1;
   }
 
@@ -316,22 +414,54 @@ interface SectionUnit {
   keepWithNext: boolean;
 }
 
-function planSection(render: RenderDoc, o: TypesetContext, measurer: Measurer, sec: RenderSection, width: number): SectionUnit[] {
+function planSection(
+  render: RenderDoc,
+  o: TypesetContext,
+  measurer: Measurer,
+  sec: RenderSection,
+  width: number,
+): SectionUnit[] {
   const headingSize = round2(o.fontSize * render.layout.headingSizeScale * 1.03);
-  const titleRuns: Run[] = [{ text: sec.title, bold: true, size: headingSize, color: render.accent }];
+  const titleRuns: Run[] = [
+    { text: sec.title, bold: true, size: headingSize, color: render.accent },
+  ];
   const titleLines = wrapRuns(measurer, o, titleRuns, width);
   const titleH = titleLines.length * headingSize * 1.28;
 
   let rule: RectBox | null = null;
   let extra = 0;
   if (render.layout.headingRule === "rule") {
-    rule = { kind: "rect", x: 0, y: titleH + 1.2, width, height: 0.7, color: "#9ca3af", role: "rule" };
+    rule = {
+      kind: "rect",
+      x: 0,
+      y: titleH + 1.2,
+      width,
+      height: 0.7,
+      color: "#9ca3af",
+      role: "rule",
+    };
     extra = 6.5;
   } else if (render.layout.headingRule === "bar") {
-    rule = { kind: "rect", x: 0, y: titleH + 2.2, width, height: 1.7, color: render.accent, role: "rule" };
+    rule = {
+      kind: "rect",
+      x: 0,
+      y: titleH + 2.2,
+      width,
+      height: 1.7,
+      color: render.accent,
+      role: "rule",
+    };
     extra = 7.5;
   } else if (render.layout.headingRule === "underline") {
-    rule = { kind: "rect", x: 0, y: titleH + 1, width: Math.min(width, 110), height: 1.1, color: render.accent, role: "rule" };
+    rule = {
+      kind: "rect",
+      x: 0,
+      y: titleH + 1,
+      width: Math.min(width, 110),
+      height: 1.1,
+      color: render.accent,
+      role: "rule",
+    };
     extra = 6.5;
   } else {
     extra = 3;
@@ -350,11 +480,19 @@ function planSection(render: RenderDoc, o: TypesetContext, measurer: Measurer, s
   const units: SectionUnit[] = [];
   const blockPlans = sec.blocks.map((b) => planBlock(render, o, measurer, b, width));
   if (blockPlans.length === 0) {
-    units.push({ items: [titleBox, ...(rule ? [rule] : [])], height: titleH + extra, keepWithNext: false });
+    units.push({
+      items: [titleBox, ...(rule ? [rule] : [])],
+      height: titleH + extra,
+      keepWithNext: false,
+    });
     return units;
   }
   units.push({
-    items: [titleBox, ...(rule ? [rule] : []), ...blockPlans[0]!.items.map((it) => ({ ...it, y: it.y + titleH + extra }))],
+    items: [
+      titleBox,
+      ...(rule ? [rule] : []),
+      ...blockPlans[0]!.items.map((it) => ({ ...it, y: it.y + titleH + extra })),
+    ],
     height: titleH + extra + blockPlans[0]!.height,
     keepWithNext: false,
   });
@@ -379,24 +517,61 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
     const h = render.header;
     const isBanner = h.variant === "banner";
     const nameSize = round2(o.fontSize * (isBanner ? 2.0 : h.variant === "centered" ? 1.9 : 1.85));
-    const nameLines = wrapRuns(measurer, { ...o, textColor: isBanner ? "#ffffff" : o.textColor }, [{ text: h.name, bold: true, size: nameSize }], width);
+    const nameLines = wrapRuns(
+      measurer,
+      { ...o, textColor: isBanner ? "#ffffff" : o.textColor },
+      [{ text: h.name, bold: true, size: nameSize }],
+      width,
+    );
     const headerItems: PlacedItem[] = [];
     let hy = 0;
-    headerItems.push({ kind: "text", x: 0, y: 0, width, lineHeight: nameSize * 1.16, align: h.align, lines: nameLines });
+    headerItems.push({
+      kind: "text",
+      x: 0,
+      y: 0,
+      width,
+      lineHeight: nameSize * 1.16,
+      align: h.align,
+      lines: nameLines,
+    });
     hy += nameLines.length * nameSize * 1.16;
     if (h.headlineRuns) {
       const hl = wrapRuns(measurer, o, h.headlineRuns, width);
-      headerItems.push({ kind: "text", x: 0, y: hy + 1, width, lineHeight: o.lineHeight * 1.05, align: h.align, lines: hl });
+      headerItems.push({
+        kind: "text",
+        x: 0,
+        y: hy + 1,
+        width,
+        lineHeight: o.lineHeight * 1.05,
+        align: h.align,
+        lines: hl,
+      });
       hy += hl.length * o.lineHeight * 1.05 + 3;
     }
     if (h.contactRuns.length) {
       const cl = wrapRuns(measurer, o, h.contactRuns, width);
-      headerItems.push({ kind: "text", x: 0, y: hy + 2, width, lineHeight: o.lineHeight * 0.98, align: h.align, lines: cl });
+      headerItems.push({
+        kind: "text",
+        x: 0,
+        y: hy + 2,
+        width,
+        lineHeight: o.lineHeight * 0.98,
+        align: h.align,
+        lines: cl,
+      });
       hy += cl.length * o.lineHeight * 0.98 + 3;
     }
     if (isBanner) {
       const bannerH = hy + o.margin.y;
-      pages[0]!.items.push({ kind: "rect", x: -o.margin.x, y: 0, width: o.page.width, height: bannerH, color: o.accent, role: "banner" });
+      pages[0]!.items.push({
+        kind: "rect",
+        x: -o.margin.x,
+        y: 0,
+        width: o.page.width,
+        height: bannerH,
+        color: o.accent,
+        role: "banner",
+      });
       // shift text below banner padding
       for (const it of headerItems) it.y += o.margin.y;
       pages[0]!.items.push(...headerItems);
@@ -405,7 +580,15 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
       for (const it of headerItems) it.y += cursorY;
       pages[0]!.items.push(...headerItems);
       cursorY += hy + 2;
-      pages[0]!.items.push({ kind: "rect", x: 0, y: cursorY, width, height: 1, color: o.accent, role: "rule" });
+      pages[0]!.items.push({
+        kind: "rect",
+        x: 0,
+        y: cursorY,
+        width,
+        height: 1,
+        color: o.accent,
+        role: "rule",
+      });
       cursorY += 12;
     }
   }
@@ -414,7 +597,9 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
     ? {
         kind: "SUMMARY",
         title: "PROFESSIONAL SUMMARY",
-        blocks: render.summaryRuns.map((runs) => ({ type: "paragraph", runs, spaceAfter: 0 }) as Block),
+        blocks: render.summaryRuns.map(
+          (runs) => ({ type: "paragraph", runs, spaceAfter: 0 }) as Block,
+        ),
       }
     : null;
 
@@ -430,7 +615,8 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
   const railGap = oneCol ? 0 : round2(width - mainWidth - railWidth);
 
   const mainSecs: RenderSection[] = [];
-  if (summaryAsSection && (oneCol || !render.layout.rail.includes("SUMMARY"))) mainSecs.push(summaryAsSection);
+  if (summaryAsSection && (oneCol || !render.layout.rail.includes("SUMMARY")))
+    mainSecs.push(summaryAsSection);
   mainSecs.push(...render.main);
   pushUnits(mainSecs, mainWidth, mainUnits);
   pushUnits(render.rail, railWidth, railUnits);
@@ -438,11 +624,25 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
   // Rail background first so main flow can start on page 1
   const railStartX = o.margin.x + mainWidth + railGap;
   if (!oneCol && render.railBg) {
-    const bg: RectBox = { kind: "rect", x: railStartX - 12, y: 0, width: railWidth + 12 + o.margin.x, height: o.page.height, color: render.railBg, role: "rail" };
+    const bg: RectBox = {
+      kind: "rect",
+      x: railStartX - 12,
+      y: 0,
+      width: railWidth + 12 + o.margin.x,
+      height: o.page.height,
+      color: render.railBg,
+      role: "rail",
+    };
     pages[0]!.items.push(bg);
   }
 
-  const flow = (units: SectionUnit[], colX: number, colWidth: number, startY: number, pageBg?: () => PlacedItem | null) => {
+  const flow = (
+    units: SectionUnit[],
+    colX: number,
+    colWidth: number,
+    startY: number,
+    pageBg?: () => PlacedItem | null,
+  ) => {
     let y = startY;
     let pageIndex = 0;
     for (let i = 0; i < units.length; i++) {
@@ -467,7 +667,19 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
     return y;
   };
 
-  const bgFactory = !oneCol && render.railBg ? () => ({ kind: "rect", x: railStartX - 12, y: 0, width: railWidth + 12 + o.margin.x, height: o.page.height, color: render.railBg, role: "rail" } as RectBox) : undefined;
+  const bgFactory =
+    !oneCol && render.railBg
+      ? () =>
+          ({
+            kind: "rect",
+            x: railStartX - 12,
+            y: 0,
+            width: railWidth + 12 + o.margin.x,
+            height: o.page.height,
+            color: render.railBg,
+            role: "rail",
+          }) as RectBox
+      : undefined;
 
   flow(mainUnits, o.margin.x, mainWidth, cursorY, bgFactory);
   if (!oneCol && railUnits.length) {
@@ -475,9 +687,42 @@ export function typesetDoc(render: RenderDoc, measurer: Measurer): PlacedDoc {
   }
 
   // Trim pages whose only content is background rects
-  const cleaned = pages.filter((p) => p.items.some((it) => it.kind === "text" && it.lines.some((l) => l.runs.some((r) => r.text.trim()))));
+  const cleaned = pages.filter((p) =>
+    p.items.some(
+      (it) => it.kind === "text" && it.lines.some((l) => l.runs.some((r) => r.text.trim())),
+    ),
+  );
   return {
-    pages: cleaned.length ? cleaned : [{ items: [{ kind: "text", x: 0, y: 0, width: 0, lineHeight: 0, align: "left", lines: [{ runs: [{ text: "", fontKey: pdfFontKey("inter", false, false), size: 10, bold: false, italic: false }], width: 0 }] }] }],
+    pages: cleaned.length
+      ? cleaned
+      : [
+          {
+            items: [
+              {
+                kind: "text",
+                x: 0,
+                y: 0,
+                width: 0,
+                lineHeight: 0,
+                align: "left",
+                lines: [
+                  {
+                    runs: [
+                      {
+                        text: "",
+                        fontKey: pdfFontKey("inter", false, false),
+                        size: 10,
+                        bold: false,
+                        italic: false,
+                      },
+                    ],
+                    width: 0,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
     width: o.page.width,
     height: o.page.height,
   };

@@ -35,7 +35,9 @@ function getTransport(): Transporter | null {
   return transporter;
 }
 
-export async function sendEmail(msg: EmailMessage): Promise<{ delivered: boolean; logged: boolean }> {
+export async function sendEmail(
+  msg: EmailMessage,
+): Promise<{ delivered: boolean; logged: boolean }> {
   const t = getTransport();
   if (!t || transportBroken) {
     log.info(`[email:log] to=${msg.to} subject=${msg.subject}`, { body: msg.text.slice(0, 2000) });
@@ -56,13 +58,20 @@ export async function sendEmail(msg: EmailMessage): Promise<{ delivered: boolean
 }
 
 export async function emailStatus(): Promise<{ ok: boolean; detail: string }> {
-  if (env.MAIL_DRIVER === "log") return { ok: true, detail: "log transport (links printed to server output)" };
+  if (env.MAIL_DRIVER === "log")
+    return { ok: true, detail: "log transport (links printed to server output)" };
   const t = getTransport();
   if (!t) return { ok: true, detail: "log transport" };
   try {
     await t.verify();
-    return { ok: true, detail: `SMTP ${env.MAIL_HOST}:${env.MAIL_PORT} (dev viewer: http://localhost:8025)` };
+    return {
+      ok: true,
+      detail: `SMTP ${env.MAIL_HOST}:${env.MAIL_PORT} (dev viewer: http://localhost:8025)`,
+    };
   } catch (e) {
-    return { ok: false, detail: `SMTP unreachable — log fallback (${String((e as Error).message).slice(0, 90)})` };
+    return {
+      ok: false,
+      detail: `SMTP unreachable — log fallback (${String((e as Error).message).slice(0, 90)})`,
+    };
   }
 }

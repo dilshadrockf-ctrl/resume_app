@@ -8,7 +8,7 @@ import { z } from "zod";
  */
 
 export const PAPER_SIZES = ["A4", "LETTER"] as const;
-export type PaperSize = (z.infer<typeof paperSizeEnum>);
+export type PaperSize = z.infer<typeof paperSizeEnum>;
 
 export const paperSizeEnum = z.enum(PAPER_SIZES);
 
@@ -240,8 +240,14 @@ export type ResumeSectionDoc = z.infer<typeof resumeSectionSchema>;
 // ─────────────────────────────── template config ───────────────────────────
 
 export const templateConfigSchema = z.object({
-  accentColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#1d4ed8"),
-  textColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).default("#111827"),
+  accentColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default("#1d4ed8"),
+  textColor: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/)
+    .default("#111827"),
   baseFont: z.enum(["inter", "lora", "mono"]).default("inter"),
   fontSize: z.number().min(8).max(13).default(10), // pt
   lineHeight: z.number().min(1.1).max(1.7).default(1.32),
@@ -314,7 +320,9 @@ export function sectionItems<T extends SectionItem["kind"]>(
   doc: ResumeDocument,
   kind: T,
 ): Array<Extract<SectionItem, { kind: T }>> {
-  const section = doc.sections.find((s: ResumeSectionDoc) => s.kind === (kind as SectionKind as string));
+  const section = doc.sections.find(
+    (s: ResumeSectionDoc) => s.kind === (kind as SectionKind as string),
+  );
   if (!section) return [];
   return section.items
     .filter((i) => i.visible)

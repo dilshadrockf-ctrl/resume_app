@@ -83,6 +83,51 @@ export interface LoadedResume {
   doc: ResumeDocument;
 }
 
+/** Section kind → library model for ref reconstruction. */
+const KIND_TO_MODEL: Record<
+  string,
+  | "EXPERIENCE"
+  | "EDUCATION"
+  | "PROJECT"
+  | "SKILL"
+  | "CERTIFICATION"
+  | "AWARD"
+  | "PUBLICATION"
+  | "LANGUAGE"
+  | "VOLUNTEER"
+  | "CUSTOM_SECTION"
+> = {
+  EXPERIENCE: "EXPERIENCE",
+  EDUCATION: "EDUCATION",
+  PROJECTS: "PROJECT",
+  SKILLS: "SKILL",
+  CERTIFICATIONS: "CERTIFICATION",
+  AWARDS: "AWARD",
+  PUBLICATIONS: "PUBLICATION",
+  VOLUNTEER: "VOLUNTEER",
+  LANGUAGES: "LANGUAGE",
+  CUSTOM: "CUSTOM_SECTION",
+};
+
+/** Snapshot-time normalization: temp ids (new items) become real library ids,
+ *  and every item ref gets its section-derived model so the version snapshot
+ *  is valid on its own (editor idMap application is still needed for the
+ *  live draft — this keeps DB history correct even if the client never maps). */
+function withResolvedRefs(doc: ResumeDocument, createdIds: Map<string, string>): ResumeDocument {
+  return {
+    ...doc,
+    sections: doc.sections.map((sec) => ({
+      ...sec,
+      items: sec.items.map((item) => {
+        const tmp = item.ref?.id;
+        const realId = tmp ? createdIds.get(tmp) : undefined;
+        const model = item.ref?.model ?? KIND_TO_MODEL[sec.kind as string] ?? "EXPERIENCE";
+        return { ...item, ref: { model, id: realId ?? tmp ?? `tmp:${sec.kind}:${item.order}` } };
+      }),
+    })),
+  };
+}
+
 export async function loadResumeDocument(userId: string, resumeId: string): Promise<LoadedResume> {
   const resume = await db.resume.findFirst({
     where: { id: resumeId, deletedAt: null, careerProfile: { userId } },
@@ -112,14 +157,24 @@ export async function loadResumeDocument(userId: string, resumeId: string): Prom
 
   const entriesById = new Map<string, EntryRow>();
   const PROFILE_KEY_TO_MODEL: Record<string, EntryModelName> = {
-    experiences: "EXPERIENCE", educations: "EDUCATION", projects: "PROJECT", skills: "SKILL",
-    certifications: "CERTIFICATION", awards: "AWARD", publications: "PUBLICATION",
-    languages: "LANGUAGE", volunteers: "VOLUNTEER", customSections: "CUSTOM_SECTION",
+    experiences: "EXPERIENCE",
+    educations: "EDUCATION",
+    projects: "PROJECT",
+    skills: "SKILL",
+    certifications: "CERTIFICATION",
+    awards: "AWARD",
+    publications: "PUBLICATION",
+    languages: "LANGUAGE",
+    volunteers: "VOLUNTEER",
+    customSections: "CUSTOM_SECTION",
   };
-  for (const [pk, rows] of Object.entries(resume.careerProfile as unknown as Record<string, unknown>)) {
+  for (const [pk, rows] of Object.entries(
+    resume.careerProfile as unknown as Record<string, unknown>,
+  )) {
     const model = PROFILE_KEY_TO_MODEL[pk];
     if (!model || !Array.isArray(rows)) continue;
-    for (const r of rows as EntryRow[]) entriesById.set(`${model}:${r.id}`, { ...r, __model: model });
+    for (const r of rows as EntryRow[])
+      entriesById.set(`${model}:${r.id}`, { ...r, __model: model });
   }
 
   const itemsBySection = new Map<string, SectionItem[]>();
@@ -128,7 +183,10 @@ export async function loadResumeDocument(userId: string, resumeId: string): Prom
     for (const item of section.items) {
       const entry = entriesById.get(`${item.model}:${item.entryId}`);
       if (!entry) continue; // library entry archived — silently unlinked at save
-      const merged = { ...entry, ...((item as { override?: Record<string, unknown> }).override as Record<string, unknown>) };
+      const merged = {
+        ...entry,
+        ...((item as { override?: Record<string, unknown> }).override as Record<string, unknown>),
+      };
       const si = entryToSectionItem(item.model, merged, item.visible, item.order);
       if (si) out.push(si);
     }
@@ -217,7 +275,12 @@ function strip<T extends object>(o: T): T {
   return out as T;
 }
 
-function entryToSectionItem(model: EntryModelName, e: EntryRow, visible: boolean, order: number): SectionItem | null {
+function entryToSectionItem(
+  model: EntryModelName,
+  e: EntryRow,
+  visible: boolean,
+  order: number,
+): SectionItem | null {
   const ref = { model, id: e.id as string };
   const base = { ref, visible, order, origin: (e.origin as "USER") ?? "USER" };
   switch (model) {
@@ -351,7 +414,15 @@ export interface SaveOptions {
   mode: "autosave" | "manual";
   label?: string;
   note?: string;
-  source?: "MANUAL" | "AUTOSAVE" | "AI_TAILOR" | "ONE_PAGE" | "IMPORT" | "DUPLICATE" | "RESTORE" | "TEMPLATE";
+  source?:
+    | "MANUAL"
+    | "AUTOSAVE"
+    | "AI_TAILOR"
+    | "ONE_PAGE"
+    | "IMPORT"
+    | "DUPLICATE"
+    | "RESTORE"
+    | "TEMPLATE";
   jobDescriptionId?: string | null;
   /** when true (default autosave), write entry content back to the career library */
   syncEntries?: boolean;
@@ -390,7 +461,9 @@ function canonicalHash(doc: ResumeDocument): string {
   // content-only hash (config excluded: reformatting shouldn't spawn versions)
   const { meta, ...rest } = doc;
   void meta;
-  return createHash("sha256").update(JSON.stringify(stripDoc(rest))).digest("hex");
+  return createHash("sha256")
+    .update(JSON.stringify(stripDoc(rest)))
+    .digest("hex");
 }
 
 function stripDoc(o: unknown): unknown {
@@ -416,7 +489,9 @@ export async function saveResumeDocument(
     where: { id: resumeId, deletedAt: null, careerProfile: { userId } },
   });
   if (!resume) throw new ForbiddenError("NOT_FOUND");
-  const profile = await db.careerProfile.findFirst({ where: { id: resume.careerProfileId, userId } });
+  const profile = await db.careerProfile.findFirst({
+    where: { id: resume.careerProfileId, userId },
+  });
   if (!profile) throw new ForbiddenError("NOT_FOUND");
 
   const contentHash = canonicalHash(doc);
@@ -425,7 +500,12 @@ export async function saveResumeDocument(
   // 1. shared facts: summary lives on the career profile (§19)
   const summaryText = doc.summary ?? "";
   if (summaryText !== (profile.summary ?? "")) {
-    tx.push(db.careerProfile.update({ where: { id: profile.id }, data: { summary: summaryText || null } }));
+    tx.push(
+      db.careerProfile.update({
+        where: { id: profile.id },
+        data: { summary: summaryText || null },
+      }),
+    );
   }
 
   // 2a. new items created inside the editor are written into the library
@@ -438,14 +518,39 @@ export async function saveResumeDocument(
       if (!isTemp) continue;
       const patch = sectionItemToEntryData(item);
       if (!patch) continue;
-      const model = item.ref?.model ?? patch.model;
+      const model = item.ref?.model ?? patch.model ?? KIND_TO_MODEL[section.kind as string];
       const delegate = ENTRY_DELEGATE[model as EntryModelName]() as unknown as {
         create: (a: { data: Record<string, unknown> }) => Promise<{ id: string }>;
       };
-      const created = await delegate.create({
-        data: { ...patch.data, careerProfileId: profile.id, origin: "USER" },
-      });
-      createdIds.set(refId ?? `tmp:${section.kind}:${item.order}`, created.id);
+      let createdId: string;
+      try {
+        createdId = (
+          await delegate.create({
+            data: { ...patch.data, careerProfileId: profile.id, origin: "USER" },
+          })
+        ).id;
+      } catch (err) {
+        // unique-constrained models (skill/certification): if the profile
+        // already holds this exact entry, link the user's own row instead of
+        // failing the whole save (§44 dedupe — nothing is modified behind
+        // their back, we simply reuse it)
+        const code = (err as { code?: string })?.code;
+        const dedupeKey =
+          model === "SKILL"
+            ? { careerProfileId: profile.id, name: String(patch.data.name ?? "") }
+            : model === "CERTIFICATION"
+              ? { careerProfileId: profile.id, name: String(patch.data.name ?? "") }
+              : null;
+        if (code !== "P2002" || !dedupeKey) throw err;
+        const existing = await (
+          delegate as unknown as {
+            findFirst: (a: { where: Record<string, unknown> }) => Promise<{ id: string } | null>;
+          }
+        ).findFirst({ where: dedupeKey });
+        if (!existing) throw err;
+        createdId = existing.id;
+      }
+      createdIds.set(refId ?? `tmp:${section.kind}:${item.order}`, createdId);
     }
   }
 
@@ -458,7 +563,10 @@ export async function saveResumeDocument(
         const patch = sectionItemToEntryData(item);
         if (!patch) continue;
         const delegate = ENTRY_DELEGATE[item.ref.model]() as unknown as {
-          updateMany: (args: { where: Record<string, unknown>; data: Record<string, unknown> }) => Promise<{ count: number }>;
+          updateMany: (args: {
+            where: Record<string, unknown>;
+            data: Record<string, unknown>;
+          }) => Promise<{ count: number }>;
         };
         tx.push(
           delegate.updateMany({
@@ -472,16 +580,31 @@ export async function saveResumeDocument(
 
   // 3. composition: sections + item links (delete join rows, never entries §57)
   const wantedKinds = new Map(doc.sections.map((sec) => [sec.kind as string, sec]));
-  const existingSections = await db.resumeSection.findMany({ where: { resumeId }, include: { items: true } });
+  const existingSections = await db.resumeSection.findMany({
+    where: { resumeId },
+    include: { items: true },
+  });
   const existingByKind = new Map(existingSections.map((sec) => [sec.kind as string, sec]));
 
   for (const [kind, section] of wantedKinds) {
     const prior = existingByKind.get(kind);
     let sectionId: string;
-    let linkedItems: Array<{ id: string; model: string; entryId: string; visible: boolean; order: number }>;
+    let linkedItems: Array<{
+      id: string;
+      model: string;
+      entryId: string;
+      visible: boolean;
+      order: number;
+    }>;
     if (!prior) {
       const created = await db.resumeSection.create({
-        data: { resumeId, kind: kind as never, title: section.title ?? null, order: section.order, visible: section.visible },
+        data: {
+          resumeId,
+          kind: kind as never,
+          title: section.title ?? null,
+          order: section.order,
+          visible: section.visible,
+        },
       });
       sectionId = created.id;
       linkedItems = [];
@@ -496,7 +619,8 @@ export async function saveResumeDocument(
     const existingByKey = new Map(linkedItems.map((i) => [`${i.model}:${i.entryId}`, i]));
     const wantedKeys = new Set<string>();
     for (const item of section.items) {
-      const model = item.ref?.model as EntryModelName | undefined;
+      const model = (item.ref?.model ?? KIND_TO_MODEL[section.kind as string]) as
+        EntryModelName | undefined;
       let entryId: string | undefined = item.ref?.id;
       if (entryId && createdIds.has(entryId)) entryId = createdIds.get(entryId);
       if (!model || !entryId || entryId.startsWith("tmp:")) continue;
@@ -511,7 +635,14 @@ export async function saveResumeDocument(
         });
       } else {
         await db.resumeSectionItem.create({
-          data: { sectionId, model: model as never, entryId, order: item.order, visible: item.visible, override: override as never },
+          data: {
+            sectionId,
+            model: model as never,
+            entryId,
+            order: item.order,
+            visible: item.visible,
+            override: override as never,
+          },
         });
       }
     }
@@ -554,16 +685,21 @@ export async function saveResumeDocument(
         select: { note: true },
       });
       if (lastAuto?.note === `hash:${contentHash}`) {
-        return { savedAt: new Date().toISOString(), versionCreated: false, contentHash, idMap: Object.fromEntries(createdIds) };
+        return {
+          savedAt: new Date().toISOString(),
+          versionCreated: false,
+          contentHash,
+          idMap: Object.fromEntries(createdIds),
+        };
       }
     }
-    const snapshot = await resumeDocumentSchema.parseAsync(doc);
+    const snapshot = await resumeDocumentSchema.parseAsync(withResolvedRefs(doc, createdIds));
     const version = await db.resumeVersion.create({
       data: {
         resumeId,
         label: opts.label ?? (opts.mode === "autosave" ? "Autosave" : "Manual save"),
         source: opts.source ?? (opts.mode === "autosave" ? "AUTOSAVE" : "MANUAL"),
-        note: opts.mode === "autosave" ? `hash:${contentHash}` : opts.note?.slice(0, 500) ?? null,
+        note: opts.mode === "autosave" ? `hash:${contentHash}` : (opts.note?.slice(0, 500) ?? null),
         snapshot: snapshot as unknown as Prisma.InputJsonValue,
         jobDescriptionId: opts.jobDescriptionId ?? null,
       },
@@ -571,65 +707,168 @@ export async function saveResumeDocument(
     versionCreated = true;
     versionId = version.id;
   }
-  return { savedAt: new Date().toISOString(), versionCreated, versionId, contentHash, idMap: Object.fromEntries(createdIds) };
+  return {
+    savedAt: new Date().toISOString(),
+    versionCreated,
+    versionId,
+    contentHash,
+    idMap: Object.fromEntries(createdIds),
+  };
 }
 
 /** Map a document section item back onto its library entry row (shared edit). */
-function sectionItemToEntryData(item: SectionItem): { model: EntryModelName; data: Record<string, unknown> } | null {
-  const model = item.ref?.model;
+const KIND_TO_ENTRY_MODEL: Record<string, EntryModelName> = {
+  experience: "EXPERIENCE",
+  education: "EDUCATION",
+  project: "PROJECT",
+  skill: "SKILL",
+  certification: "CERTIFICATION",
+  award: "AWARD",
+  publication: "PUBLICATION",
+  volunteer: "VOLUNTEER",
+  language: "LANGUAGE",
+  custom: "CUSTOM_SECTION",
+};
+
+function sectionItemToEntryData(
+  item: SectionItem,
+): { model: EntryModelName; data: Record<string, unknown> } | null {
+  // items created in the editor (or by import) may carry only a temp id —
+  // their model comes from the item kind itself
+  const model = item.ref?.model ?? KIND_TO_ENTRY_MODEL[item.kind as string];
   if (!model) return null;
   const d: Record<string, unknown> = {};
   switch (item.kind) {
     case "experience":
-      Object.assign(d, strip({
-        employer: item.employer, title: item.title, employmentType: item.employmentType, location: item.location || null,
-        startDate: item.startDate || null, endDate: item.endDate || null, current: item.current, companyUrl: item.companyUrl || null,
-        description: item.description || null, bullets: item.bullets, achievements: item.achievements, technologies: item.technologies,
-        skillsUsed: item.skillsUsed, projectNote: item.projectNote || null,
-      }));
+      Object.assign(
+        d,
+        strip({
+          employer: item.employer,
+          title: item.title,
+          employmentType: item.employmentType,
+          location: item.location || null,
+          startDate: item.startDate || null,
+          endDate: item.endDate || null,
+          current: item.current,
+          companyUrl: item.companyUrl || null,
+          description: item.description || null,
+          bullets: item.bullets,
+          achievements: item.achievements,
+          technologies: item.technologies,
+          skillsUsed: item.skillsUsed,
+          projectNote: item.projectNote || null,
+        }),
+      );
       break;
     case "education":
-      Object.assign(d, strip({
-        institution: item.institution, degree: item.degree || null, field: item.field || null, location: item.location || null,
-        startDate: item.startDate || null, endDate: item.endDate || null, current: item.current, gpa: item.gpa || null, honors: item.honors || null,
-        coursework: item.coursework, activities: item.activities, description: item.description || null,
-      }));
+      Object.assign(
+        d,
+        strip({
+          institution: item.institution,
+          degree: item.degree || null,
+          field: item.field || null,
+          location: item.location || null,
+          startDate: item.startDate || null,
+          endDate: item.endDate || null,
+          current: item.current,
+          gpa: item.gpa || null,
+          honors: item.honors || null,
+          coursework: item.coursework,
+          activities: item.activities,
+          description: item.description || null,
+        }),
+      );
       break;
     case "project":
-      Object.assign(d, strip({
-        name: item.name, role: item.role || null, url: item.url || null, startDate: item.startDate || null, endDate: item.endDate || null,
-        description: item.description || null, bullets: item.bullets, technologies: item.technologies,
-        skillsUsed: item.skillsUsed ?? [],
-      }));
+      Object.assign(
+        d,
+        strip({
+          name: item.name,
+          role: item.role || null,
+          url: item.url || null,
+          startDate: item.startDate || null,
+          endDate: item.endDate || null,
+          description: item.description || null,
+          bullets: item.bullets,
+          technologies: item.technologies,
+          skillsUsed: item.skillsUsed ?? [],
+        }),
+      );
       break;
     case "skill":
-      Object.assign(d, strip({ name: item.name, category: item.category, level: item.level ?? null, keywords: item.keywords }));
+      Object.assign(
+        d,
+        strip({
+          name: item.name,
+          category: item.category,
+          level: item.level ?? null,
+          keywords: item.keywords,
+        }),
+      );
       break;
     case "certification":
-      Object.assign(d, strip({
-        name: item.name, issuer: item.issuer || null, credentialId: item.credentialId || null, url: item.url || null,
-        issueDate: item.issueDate || null, expiryDate: item.expiryDate || null, inProgress: item.inProgress,
-      }));
+      Object.assign(
+        d,
+        strip({
+          name: item.name,
+          issuer: item.issuer || null,
+          credentialId: item.credentialId || null,
+          url: item.url || null,
+          issueDate: item.issueDate || null,
+          expiryDate: item.expiryDate || null,
+          inProgress: item.inProgress,
+        }),
+      );
       break;
     case "award":
-      Object.assign(d, strip({ title: item.title, issuer: item.issuer || null, date: item.date || null, blurb: item.blurb || null }));
+      Object.assign(
+        d,
+        strip({
+          title: item.title,
+          issuer: item.issuer || null,
+          date: item.date || null,
+          blurb: item.blurb || null,
+        }),
+      );
       break;
     case "publication":
-      Object.assign(d, strip({ title: item.title, publisher: item.publisher || null, url: item.url || null, date: item.date || null, authors: item.authors, citationStyle: item.citationStyle || null, blurb: item.blurb || null }));
+      Object.assign(
+        d,
+        strip({
+          title: item.title,
+          publisher: item.publisher || null,
+          url: item.url || null,
+          date: item.date || null,
+          authors: item.authors,
+          citationStyle: item.citationStyle || null,
+          blurb: item.blurb || null,
+        }),
+      );
       break;
     case "language":
       Object.assign(d, strip({ name: item.name, proficiency: item.proficiency || null }));
       break;
     case "volunteer":
-      Object.assign(d, strip({
-        organization: item.organization, role: item.role, location: item.location || null, startDate: item.startDate || null,
-        endDate: item.endDate || null, current: item.current, description: item.description || null, bullets: item.bullets,
-      }));
+      Object.assign(
+        d,
+        strip({
+          organization: item.organization,
+          role: item.role,
+          location: item.location || null,
+          startDate: item.startDate || null,
+          endDate: item.endDate || null,
+          current: item.current,
+          description: item.description || null,
+          bullets: item.bullets,
+        }),
+      );
       break;
     case "custom":
-      Object.assign(d, strip({ title: item.title, kind: item.sectionKindTag || "generic", items: item.items }));
+      Object.assign(
+        d,
+        strip({ title: item.title, kind: item.sectionKindTag || "generic", items: item.items }),
+      );
       break;
   }
   return { model, data: d };
 }
-

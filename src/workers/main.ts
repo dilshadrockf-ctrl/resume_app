@@ -7,9 +7,11 @@
 import { log } from "@/lib/logger";
 import { startWorkerLoop } from "@/services/queue";
 import { ensureExportHandlers } from "@/features/export/service";
+import { ensureImportHandlers } from "@/features/import/service";
 
 async function main() {
   ensureExportHandlers();
+  ensureImportHandlers();
   const close = await startWorkerLoop(() => log.info("worker consuming queues"));
   const bye = async () => {
     log.info("worker: shutting down");

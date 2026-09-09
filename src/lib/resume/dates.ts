@@ -51,7 +51,10 @@ export function endOrdinal(input: string | null | undefined, isCurrent = false):
   return dateToOrdinal({ ...d, month: d.month ?? 12, day: d.day ?? 31 });
 }
 
-export function formatPartialDate(input: string | null | undefined, opts?: { short?: boolean }): string {
+export function formatPartialDate(
+  input: string | null | undefined,
+  opts?: { short?: boolean },
+): string {
   const d = parsePartialDate(input);
   if (!d) return input ? String(input) : "";
   if (d.month && !opts?.short) {
@@ -62,12 +65,32 @@ export function formatPartialDate(input: string | null | undefined, opts?: { sho
 }
 
 const MONTHS = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 const SHORT_MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
 ];
 
 export function formatRange(
@@ -83,13 +106,24 @@ export function formatRange(
   return `${s} — ${e}`;
 }
 
-export function monthsBetween(start: string | null | undefined, end: string | null | undefined, isCurrent = false): number | null {
+export function monthsBetween(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  isCurrent = false,
+): number | null {
   const so = startOrdinal(start);
   const eo = endOrdinal(end, isCurrent);
   if (so === null || eo === null) return null;
   if (eo === Number.MAX_SAFE_INTEGER) {
     const now = new Date();
-    return Math.max(0, (now.getFullYear() * 12 + now.getMonth()) - Math.floor(so / 10000) * 12 - (Math.floor(so / 100) % 100) + 1);
+    return Math.max(
+      0,
+      now.getFullYear() * 12 +
+        now.getMonth() -
+        Math.floor(so / 10000) * 12 -
+        (Math.floor(so / 100) % 100) +
+        1,
+    );
   }
   const sy = Math.floor(so / 10000);
   const sm = Math.floor(so / 100) % 100;
@@ -119,28 +153,54 @@ export function validateExperienceDates(
   if (!start) return issues;
   const s = parsePartialDate(start);
   if (!s) {
-    issues.push({ level: "error", code: "INVALID_START", message: `Start date "${start}" is not a valid year or year-month.` });
+    issues.push({
+      level: "error",
+      code: "INVALID_START",
+      message: `Start date "${start}" is not a valid year or year-month.`,
+    });
     return issues;
   }
-  const futureStart = startOrdinal(start)! > dateToOrdinal({ year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() });
+  const futureStart =
+    startOrdinal(start)! >
+    dateToOrdinal({ year: today.getFullYear(), month: today.getMonth() + 1, day: today.getDate() });
   if (futureStart) {
-    issues.push({ level: "warning", code: "FUTURE_START", message: "Start date is in the future." });
+    issues.push({
+      level: "warning",
+      code: "FUTURE_START",
+      message: "Start date is in the future.",
+    });
   }
   if (!current) {
     if (!end) {
-      issues.push({ level: "warning", code: "MISSING_END", message: "End date is missing for a past role." });
+      issues.push({
+        level: "warning",
+        code: "MISSING_END",
+        message: "End date is missing for a past role.",
+      });
       return issues;
     }
     const e = parsePartialDate(end);
     if (!e) {
-      issues.push({ level: "error", code: "INVALID_END", message: `End date "${end}" is not a valid year or year-month.` });
+      issues.push({
+        level: "error",
+        code: "INVALID_END",
+        message: `End date "${end}" is not a valid year or year-month.`,
+      });
       return issues;
     }
     if (endOrdinal(end)! < startOrdinal(start)!) {
-      issues.push({ level: "error", code: "REVERSED", message: "End date is before the start date." });
+      issues.push({
+        level: "error",
+        code: "REVERSED",
+        message: "End date is before the start date.",
+      });
     }
   } else if (end) {
-    issues.push({ level: "warning", code: "END_WITH_CURRENT", message: 'Role marked "current" also has an end date.' });
+    issues.push({
+      level: "warning",
+      code: "END_WITH_CURRENT",
+      message: 'Role marked "current" also has an end date.',
+    });
   }
   return issues;
 }

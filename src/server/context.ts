@@ -75,11 +75,23 @@ export class ForbiddenError extends Error {
 
 export async function audit(ctx: Ctx, action: string, meta: Record<string, unknown> = {}) {
   await db.auditLog
-    .create({ data: { userId: ctx.userId, action, ip: ctx.ip, userAgent: ctx.userAgent, meta: meta as never } })
+    .create({
+      data: {
+        userId: ctx.userId,
+        action,
+        ip: ctx.ip,
+        userAgent: ctx.userAgent,
+        meta: meta as never,
+      },
+    })
     .catch(() => undefined);
 }
 
-export async function track(ctx: { userId: string } | null, event: string, props: Record<string, unknown> = {}) {
+export async function track(
+  ctx: { userId: string } | null,
+  event: string,
+  props: Record<string, unknown> = {},
+) {
   await db.usageEvent
     .create({ data: { userId: ctx?.userId ?? null, event, props: props as never } })
     .catch(() => undefined);

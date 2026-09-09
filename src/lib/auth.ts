@@ -33,20 +33,38 @@ export const authConfig = {
   trustHost: true,
   cookies: {
     sessionToken: {
-      options: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" },
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      },
     },
     callbackUrl: {
-      options: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" },
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      },
     },
     csrfToken: {
-      options: { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" },
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      },
     },
   },
   pages: { signIn: "/login", error: "/login" },
   providers: [
     Credentials({
       name: "Email and password",
-      credentials: { email: { label: "Email", type: "email" }, password: { label: "Password", type: "password" } },
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
       async authorize(raw) {
         const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) return null;
@@ -60,9 +78,18 @@ export const authConfig = {
         if (!user?.passwordHash) return null;
         const ok = await verifyPassword(user.passwordHash, parsed.data.password);
         if (!ok) return null;
-        await db.auditLog.create({ data: { userId: user.id, action: "login", meta: {} } }).catch(() => undefined);
-        await db.usageEvent.create({ data: { userId: user.id, event: "login", props: {} } }).catch(() => undefined);
-        return { id: user.id, email: user.email, name: user.name, role: user.role === "ADMIN" ? "ADMIN" : "USER" };
+        await db.auditLog
+          .create({ data: { userId: user.id, action: "login", meta: {} } })
+          .catch(() => undefined);
+        await db.usageEvent
+          .create({ data: { userId: user.id, event: "login", props: {} } })
+          .catch(() => undefined);
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role === "ADMIN" ? "ADMIN" : "USER",
+        };
       },
     }),
   ],

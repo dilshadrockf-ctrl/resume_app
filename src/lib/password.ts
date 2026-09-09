@@ -26,8 +26,16 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
 
 const MIN_LEN = 10;
 const COMMON = new Set([
-  "password123", "password1", "1234567890", "qwertyuiop", "letmein123", "changeme123",
-  "iloveyou123", "admin12345", "welcome123", "passw0rd123",
+  "password123",
+  "password1",
+  "1234567890",
+  "qwertyuiop",
+  "letmein123",
+  "changeme123",
+  "iloveyou123",
+  "admin12345",
+  "welcome123",
+  "passw0rd123",
 ]);
 
 export interface PasswordCheck {
@@ -36,8 +44,10 @@ export interface PasswordCheck {
 }
 
 export function checkPasswordStrength(password: string, identifier?: string): PasswordCheck {
-  if (password.length < MIN_LEN) return { ok: false, message: `Password must be at least ${MIN_LEN} characters.` };
-  if (COMMON.has(password.toLowerCase())) return { ok: false, message: "That password is too common." };
+  if (password.length < MIN_LEN)
+    return { ok: false, message: `Password must be at least ${MIN_LEN} characters.` };
+  if (COMMON.has(password.toLowerCase()))
+    return { ok: false, message: "That password is too common." };
   if (identifier && password.toLowerCase().includes(identifier.toLowerCase().split("@")[0] ?? "")) {
     return { ok: false, message: "Password must not contain your email name." };
   }

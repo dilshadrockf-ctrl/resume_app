@@ -88,7 +88,8 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "ats-classic",
     name: "ATS Classic",
-    description: "Single column, standard headings, maximum parseability. The safest choice for portals.",
+    description:
+      "Single column, standard headings, maximum parseability. The safest choice for portals.",
     ats: "excellent",
     tags: ["ats-friendly", "minimal", "one-page"],
     version: 2,
@@ -119,7 +120,11 @@ export const TEMPLATES: TemplateDefinition[] = [
     tags: ["ats-friendly", "modern"],
     version: 1,
     layout: spec({ headingCase: "title-case", headingRule: "underline" }),
-    defaultConfig: { accentColor: "#1d4ed8", uppercaseHeadings: false, sectionDivider: "underline" },
+    defaultConfig: {
+      accentColor: "#1d4ed8",
+      uppercaseHeadings: false,
+      sectionDivider: "underline",
+    },
   },
   {
     id: "executive",
@@ -137,7 +142,12 @@ export const TEMPLATES: TemplateDefinition[] = [
       spacingScale: 1.12,
       accent: "#0f3d3e",
     }),
-    defaultConfig: { baseFont: "lora", accentColor: "#0f3d3e", sectionDivider: "bar", uppercaseHeadings: true },
+    defaultConfig: {
+      baseFont: "lora",
+      accentColor: "#0f3d3e",
+      sectionDivider: "bar",
+      uppercaseHeadings: true,
+    },
   },
   {
     id: "technical",
@@ -181,7 +191,8 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "corporate",
     name: "Corporate",
-    description: "Two-column with a light sidebar for skills and education. Structured and familiar.",
+    description:
+      "Two-column with a light sidebar for skills and education. Structured and familiar.",
     ats: "good",
     tags: ["modern"],
     version: 1,
@@ -301,7 +312,8 @@ export const TEMPLATES: TemplateDefinition[] = [
   {
     id: "switch",
     name: "Engineering Switch",
-    description: "Role-based skill emphasis for career changers — transferable skills surface first.",
+    description:
+      "Role-based skill emphasis for career changers — transferable skills surface first.",
     ats: "good",
     tags: ["technical", "modern"],
     version: 1,

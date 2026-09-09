@@ -23,14 +23,54 @@ export interface ContentStats {
   tips: string[];
 }
 
-const WEAK = ["responsible for", "helped with", "worked on", "assisted with", "tasked with", "in charge of", "duties included"];
-const ACTION_VERBS = [
-  "built", "led", "launched", "designed", "shipped", "improved", "reduced", "increased", "automated", "migrated",
-  "scaled", "optimized", "delivered", "created", "drove", "owned", "refactored", "implemented", "architected",
-  "mentored", "cut", "grew", "streamlined", "introduced", "negotiated", "published", "patented", "saved",
-  "accelerated", "standardized", "consolidated", "orchestrated", "resolved", "diagnosed", "deployed",
+const WEAK = [
+  "responsible for",
+  "helped with",
+  "worked on",
+  "assisted with",
+  "tasked with",
+  "in charge of",
+  "duties included",
 ];
-const QUANT = /(\d+(\.\d+)?\s?(%|percent|x\b|k\b|m\b|ms\b|hrs?|hours?|days?|weeks?|months?|years?|\$)|\$[\d,.]+|\b[A-Z]?[a-z]*\d{2,}\b)/;
+const ACTION_VERBS = [
+  "built",
+  "led",
+  "launched",
+  "designed",
+  "shipped",
+  "improved",
+  "reduced",
+  "increased",
+  "automated",
+  "migrated",
+  "scaled",
+  "optimized",
+  "delivered",
+  "created",
+  "drove",
+  "owned",
+  "refactored",
+  "implemented",
+  "architected",
+  "mentored",
+  "cut",
+  "grew",
+  "streamlined",
+  "introduced",
+  "negotiated",
+  "published",
+  "patented",
+  "saved",
+  "accelerated",
+  "standardized",
+  "consolidated",
+  "orchestrated",
+  "resolved",
+  "diagnosed",
+  "deployed",
+];
+const QUANT =
+  /(\d+(\.\d+)?\s?(%|percent|x\b|k\b|m\b|ms\b|hrs?|hours?|days?|weeks?|months?|years?|\$)|\$[\d,.]+|\b[A-Z]?[a-z]*\d{2,}\b)/;
 
 function words(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
@@ -96,7 +136,8 @@ export function computeStats(doc: ResumeDocument): ContentStats {
       default:
         for (const it of items) {
           if ("blurb" in it && typeof it.blurb === "string") wordCount += words(it.blurb);
-          if ("items" in it && Array.isArray(it.items)) wordCount += (it.items as string[]).reduce((a, b) => a + words(b), 0);
+          if ("items" in it && Array.isArray(it.items))
+            wordCount += (it.items as string[]).reduce((a, b) => a + words(b), 0);
         }
     }
   }
@@ -112,38 +153,49 @@ export function computeStats(doc: ResumeDocument): ContentStats {
       weakCount++;
     }
   }
-  const weakStarters = allBullets.filter((b) => WEAK.some((w) => b.trim().toLowerCase().startsWith(w))).slice(0, 4);
+  const weakStarters = allBullets
+    .filter((b) => WEAK.some((w) => b.trim().toLowerCase().startsWith(w)))
+    .slice(0, 4);
 
   const hasSummary = doc.summary.trim().length > 30;
   const emptySections: string[] = [];
   for (const s of doc.sections) {
-    if (s.visible && s.kind !== "SUMMARY" && s.items.filter((i) => i.visible).length === 0) emptySections.push(s.title ?? s.kind);
+    if (s.visible && s.kind !== "SUMMARY" && s.items.filter((i) => i.visible).length === 0)
+      emptySections.push(s.title ?? s.kind);
   }
 
   // rough single-page estimate: ~14 lines/inch header+sections
   const estimatedLines = Math.round(
     6 + // header
-    (hasSummary ? Math.max(2, Math.ceil(words(doc.summary) / 13)) : 0) +
-    bulletCount * 1.8 +
-    allBullets.reduce((a, b) => a + (words(b) > 24 ? 0.7 : 0), 0) +
-    (doc.sections.filter((s) => s.visible && s.items.some((i) => i.visible)).length) * 1.6,
+      (hasSummary ? Math.max(2, Math.ceil(words(doc.summary) / 13)) : 0) +
+      bulletCount * 1.8 +
+      allBullets.reduce((a, b) => a + (words(b) > 24 ? 0.7 : 0), 0) +
+      doc.sections.filter((s) => s.visible && s.items.some((i) => i.visible)).length * 1.6,
   );
-  const onePageRisk: ContentStats["onePageRisk"] = estimatedLines <= 46 ? "low" : estimatedLines <= 56 ? "medium" : "high";
+  const onePageRisk: ContentStats["onePageRisk"] =
+    estimatedLines <= 46 ? "low" : estimatedLines <= 56 ? "medium" : "high";
 
   let score = 0;
-  if (contactComplete) score += 10; else tips.push("Add phone number and location — most screening forms parse them.");
-  if (hasSummary) score += 10; else tips.push("Write a 2–3 line summary above your experience.");
+  if (contactComplete) score += 10;
+  else tips.push("Add phone number and location — most screening forms parse them.");
+  if (hasSummary) score += 10;
+  else tips.push("Write a 2–3 line summary above your experience.");
   if (experienceMonths > 0) score += 10;
-  if (bulletCount >= 6) score += 10; else tips.push("Aim for 3–5 outcome bullets per recent role.");
+  if (bulletCount >= 6) score += 10;
+  else tips.push("Aim for 3–5 outcome bullets per recent role.");
   if (bulletCount === 0 || quantified / Math.max(1, bulletCount) >= 0.4) score += 20;
-  else tips.push(`Only ${quantified}/${bulletCount} bullets have numbers — quantify impact (%, $, time saved).`);
+  else
+    tips.push(
+      `Only ${quantified}/${bulletCount} bullets have numbers — quantify impact (%, $, time saved).`,
+    );
   if (bulletCount === 0 || actionStart / Math.max(1, bulletCount) >= 0.6) score += 15;
   else tips.push("Start bullets with action verbs (built, led, reduced…).");
   if (weakCount === 0) score += 10;
   else tips.push(`Replace ${weakCount} "responsible for / helped with" openers with action verbs.`);
   if (onePageRisk !== "high") score += 15;
   else tips.push(`About ${estimatedLines} lines — trim to one page or prune older roles.`);
-  if (emptySections.length) tips.push(`Remove or fill empty sections: ${emptySections.join(", ")}.`);
+  if (emptySections.length)
+    tips.push(`Remove or fill empty sections: ${emptySections.join(", ")}.`);
   score = Math.max(5, Math.min(100, Math.round(score * (emptySections.length ? 0.95 : 1))));
 
   return {
