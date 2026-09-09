@@ -64,6 +64,17 @@ pass `--no-optional`). The quickstart commands above run as-is in both
 server can't start on your machine, use `docker compose up -d db`
 (or any Postgres 16+) and set `DATABASE_URL` in `.env` before running setup.
 
+> **Don't keep the project in OneDrive/Dropbox/Google Drive** (or another
+> cloud-synced or network folder). PostgreSQL needs exclusive file locks and
+> streaming writes, and sync engines lock files behind its back — `initdb`
+> can hang or the data cluster can be corrupted. `npm run setup` warns you
+> when it detects a synced folder; either move the project to a local path or
+> keep the data directory elsewhere with `POSTGRES_DATA_DIR`:
+>
+> - cmd: `set POSTGRES_DATA_DIR=C:\resumeforge-data && npm run setup`
+> - PowerShell: `$env:POSTGRES_DATA_DIR="C:\resumeforge-data"; npm run setup`
+> - macOS/Linux: `POSTGRES_DATA_DIR=~/resumeforge-data npm run setup`
+
 Windows cmd notes:
 - Don't use Posix env-prefix syntax (`PRISMA_OFFLINE=1 npm ...`); use
   `set PRISMA_OFFLINE=1 && npm run db:generate` instead.
